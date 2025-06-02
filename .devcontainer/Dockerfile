@@ -7,7 +7,7 @@ ENV LANG=ja_JP.UTF-8
 #ENV LC_CTYPE=ja_JP.UTF-8
 
 RUN apt-get update \
-    && apt-get install -y git \
+    && apt-get install --no-install-recommends -y git \
     && apt install -y python3 python3-dev python3-venv python-is-python3 \
     && apt-get clean \
     && rm -rf /var/lib/apt-get/lists/*
