@@ -1,6 +1,6 @@
 FROM ubuntu:latest
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 ENV LANG=ja_JP.UTF-8
 #ENV LC_ALL=ja_JP.UTF-8
