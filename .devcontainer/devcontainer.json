@@ -1,5 +1,5 @@
 {
-  "name": "DevContainer",
+  "name": "Python",
   "workspaceFolder": "/workspaces",
   // UID and GID is imported from .env file.
   "dockerComposeFile": "compose.yaml",
