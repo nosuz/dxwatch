@@ -1,0 +1,32 @@
+{
+  "name": "DevContainer",
+  "workspaceFolder": "/workspaces",
+  // UID and GID is imported from .env file.
+  "dockerComposeFile": "compose.yaml",
+  "service": "app",
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  // "features": {},
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
+
+  // Uncomment the next line to run commands after the container is created.
+  // "postCreateCommand": "cat /etc/os-release",
+
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "settings": {},
+      "extensions": [
+        "mhutchie.git-graph",
+        "streetsidesoftware.code-spell-checker",
+        "ms-python.autopep8",
+        "formulahendry.code-runner",
+        // ms-python.python install Pylance and Python Debugger
+        "ms-python.python",
+        // "kevinrose.vsc-python-indent",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}
