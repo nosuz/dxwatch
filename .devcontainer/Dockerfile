@@ -1,5 +1,15 @@
 FROM ubuntu:latest
 
+ENV LANG=ja_JP.UTF-8
+#ENV LC_ALL=ja_JP.UTF-8
+#ENV LC_CTYPE=ja_JP.UTF-8
+
+RUN apt-get update \
+    && apt-get install -y git \
+    && apt install -y python3 python3-dev python3-venv python-is-python3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt-get/lists/*
+
 ARG USERNAME=vscode
 ARG UID=10000
 ARG GID=$UID
@@ -22,16 +32,6 @@ RUN set -eux; \
 #     && rm -rf /var/lib/apt-get/lists/* \
 #     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
 #     && chmod 0440 /etc/sudoers.d/$USERNAME
-
-ENV LANG=ja_JP.UTF-8
-ENV LC_ALL=ja_JP.UTF-8
-ENV LC_CTYPE=ja_JP.UTF-8
-
-RUN apt-get update \
-    && apt-get install -y git \
-    && apt install -y python3 python3-dev python3-venv python-is-python3 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt-get/lists/*
 
 # change user. Exec as vscode after this directive.
 USER vscode
