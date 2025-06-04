@@ -1,16 +1,9 @@
+# syntax=docker/dockerfile:1.4
 FROM ubuntu:latest
-
-ENV DEBIAN_FRONTEND=noninteractive
 
 ENV LANG=ja_JP.UTF-8
 #ENV LC_ALL=ja_JP.UTF-8
 #ENV LC_CTYPE=ja_JP.UTF-8
-
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y git \
-    && apt install -y python3 python3-dev python3-venv python-is-python3 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt-get/lists/*
 
 ARG USERNAME=vscode
 ARG UID=10000
@@ -31,9 +24,21 @@ RUN set -eux; \
 
 # RUN apt-get update \
 #     && apt-get install -y sudo \
+#     && apt-get clean \
 #     && rm -rf /var/lib/apt-get/lists/* \
 #     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
 #     && chmod 0440 /etc/sudoers.d/$USERNAME
+
+# install packages
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+    # ssh is required to handle GitHub in the container
+    git ssh \
+    python3 python3-dev python3-venv python-is-python3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt-get/lists/*
 
 # change user. Exec as vscode after this directive.
 USER vscode
@@ -44,9 +49,12 @@ RUN python3 -m venv $HOME/venv && \
     $HOME/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # activate venv for Pylance
-RUN echo 'if [ -f "$HOME/venv/bin/activate" ] && [ -z "$VIRTUAL_ENV" ]; then' >> /home/vscode/.bashrc && \
-    echo '    . "$HOME/venv/bin/activate"' >> /home/vscode/.bashrc && \
-    echo 'fi' >> /home/vscode/.bashrc
+RUN cat <<EOF >> /home/vscode/.bashrc
+
+if [ -f "$HOME/venv/bin/activate" ] && [ -z "$VIRTUAL_ENV" ]; then
+    . "$HOME/venv/bin/activate"
+fi
+EOF
 
 # $HOME is not expand in ENV
 ENV PATH="/home/vscode/venv/bin:$PATH"
