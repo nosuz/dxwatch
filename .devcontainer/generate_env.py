@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 
 # 実行中のユーザーの UID と GID を取得
