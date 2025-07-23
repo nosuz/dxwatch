@@ -71,6 +71,3 @@ if [ -f "$HOME/venv/bin/activate" ] && [ -z "$VIRTUAL_ENV" ]; then
     . "$HOME/venv/bin/activate"
 fi
 EOF
-
-# $HOME is not expand in ENV
-ENV PATH="/home/vscode/venv/bin:$PATH"
