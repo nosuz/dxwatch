@@ -64,8 +64,8 @@ RUN --mount=type=cache,target=/home/vscode/.cache/pip \
     && $HOME/venv/bin/pip install --upgrade pip \
     && $HOME/venv/bin/pip install -r requirements.txt
 
-# activate venv for Pylance
-RUN cat <<EOF >> /home/vscode/.bashrc
+# activate venv
+RUN cat <<'EOF' >> /home/vscode/.bashrc
 
 if [ -f "$HOME/venv/bin/activate" ] && [ -z "$VIRTUAL_ENV" ]; then
     . "$HOME/venv/bin/activate"
