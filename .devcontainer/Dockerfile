@@ -9,8 +9,8 @@ ENV LC_CTYPE=ja_JP.UTF-8
 ENV TZ=Asia/Tokyo
 
 ARG USERNAME=vscode
-ARG UID=10000
-ARG GID=$UID
+ARG UID=$UID
+ARG GID=$GID
 
 # Remove user if already exist and create new user.
 RUN set -eux; \
@@ -29,12 +29,12 @@ RUN set -eux; \
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Enable sudo
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,sharing=locked,target=/var/lib/apt \
-    apt-get update \
-    && apt-get install -y sudo \
-    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME
+# RUN --mount=type=cache,target=/var/cache/apt \
+#     --mount=type=cache,sharing=locked,target=/var/lib/apt \
+#     apt-get update \
+#     && apt-get install -y sudo \
+#     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+#     && chmod 0440 /etc/sudoers.d/$USERNAME
 
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,sharing=locked,target=/var/lib/apt \
@@ -59,10 +59,9 @@ COPY requirements.txt .
 ARG PIP_CACHE_DIR=/home/vscode/.cache/pip
 RUN mkdir -p $PIP_CACHE_DIR
 RUN --mount=type=cache,target=/home/vscode/.cache/pip \
-    sudo chown vscode:vscode /home/vscode/.cache/pip \
-    && python3 -m venv $HOME/venv \
-    && $HOME/venv/bin/pip install --upgrade pip \
-    && $HOME/venv/bin/pip install -r requirements.txt
+    python3 -m venv /home/vscode/venv \
+    && /home/vscode/venv/bin/pip install --upgrade pip \
+    && /home/vscode/venv/bin/pip install -r requirements.txt
 
 # activate venv
 RUN cat <<'EOF' >> /home/vscode/.bashrc
