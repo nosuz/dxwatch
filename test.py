@@ -1,6 +1,8 @@
 import os
 import requests
 
+print("Remove `uv.lock` then `uv add requests`")
+
 print(requests.__version__)
 print("Hello")
 

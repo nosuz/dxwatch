@@ -42,7 +42,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && apt-get install --no-install-recommends -y \
     # ssh is required to handle GitHub in the container
     git ssh \
-    python3 python3-dev python3-venv python-is-python3 \
+    python3 python3-venv \
+    # curl is required to install uv
+    curl \
     # System tools
     locales tzdata \
     # Configure locale
@@ -55,18 +57,23 @@ RUN --mount=type=cache,target=/var/cache/apt \
 # change user. Exec as vscode after this directive.
 USER vscode
 
-COPY requirements.txt .
-ARG PIP_CACHE_DIR=/home/vscode/.cache/pip
-RUN mkdir -p $PIP_CACHE_DIR
-RUN --mount=type=cache,target=/home/vscode/.cache/pip \
-    python3 -m venv /home/vscode/venv \
-    && /home/vscode/venv/bin/pip install --upgrade pip \
-    && /home/vscode/venv/bin/pip install -r requirements.txt
+# install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# activate venv
-RUN cat <<'EOF' >> /home/vscode/.bashrc
+ENV UV_PROJECT_ENVIRONMENT=/home/vscode/venv
+ARG UV_CACHE_DIR=/home/vscode/.cache/uv
+RUN mkdir -p $UV_CACHE_DIR
 
-if [ -f "$HOME/venv/bin/activate" ] && [ -z "$VIRTUAL_ENV" ]; then
-    . "$HOME/venv/bin/activate"
-fi
-EOF
+# blank uv.lock is just place holder.
+# remove this before adding the initial library.
+COPY pyproject.toml uv.lock ./
+# set `--frozen` to `uv sync` on runtime
+RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
+    /home/vscode/.local/bin/uv venv /home/vscode/venv \
+    && if [ -s uv.lock ]; then /home/vscode/.local/bin/uv sync; fi
+
+RUN printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    'exec uv run python "$@"' \
+    > /home/vscode/.local/bin/python \
+    && chmod +x /home/vscode/.local/bin/python

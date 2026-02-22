@@ -16,7 +16,9 @@
   // Configure tool-specific properties.
   "customizations": {
     "vscode": {
-      "settings": {},
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/venv/bin/python"
+      },
       "extensions": [
         "mhutchie.git-graph",
         "streetsidesoftware.code-spell-checker",
