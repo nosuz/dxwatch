@@ -72,8 +72,14 @@ RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
     /home/vscode/.local/bin/uv venv /home/vscode/venv \
     && if [ -s uv.lock ]; then /home/vscode/.local/bin/uv sync; fi
 
-RUN printf '%s\n' \
-    '#!/usr/bin/env bash' \
-    'exec uv run python "$@"' \
-    > /home/vscode/.local/bin/python \
-    && chmod +x /home/vscode/.local/bin/python
+# activate venv
+RUN cat <<'EOF' >> /home/vscode/.bashrc
+
+export LANG=$LANG
+
+if [ -n "$UV_PROJECT_ENVIRONMENT" ] &&
+    [ -f "$UV_PROJECT_ENVIRONMENT/bin/activate" ] &&
+    [ -z "$VIRTUAL_ENV" ]; then
+    . "$UV_PROJECT_ENVIRONMENT/bin/activate"
+fi
+EOF
