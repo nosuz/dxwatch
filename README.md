@@ -16,3 +16,29 @@
 
 - `/my_dx` now also shows grid lines and grid labels.
 - Common JavaScript was split by responsibility so each file is shorter and easier to modify.
+
+## Build Container
+
+```bash
+docker compose up -d --build
+```
+
+## Transfer Docker Image
+
+### extract image
+
+```bash
+docker save pskreporter-pskreporter:latest -o pskreporter.tar
+```
+
+### transfer image
+
+```bash
+scp pskreporter.tar user@server:/tmp/
+```
+
+### install image
+
+```bash
+docker load -i pskreporter.tar
+```

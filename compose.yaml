@@ -1,0 +1,10 @@
+services:
+  pskreporter:
+    build:
+      context: .
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

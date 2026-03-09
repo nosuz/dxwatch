@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update \
     && apt-get install --no-install-recommends -y \
     # ssh is required to handle GitHub in the container
-    git ssh \
+    # git ssh \
     python3 python3-venv \
     # curl is required to install uv
     curl \
@@ -45,6 +45,10 @@ RUN --mount=type=cache,target=/var/cache/apt \
     # Configure timezone
     && ln -fs /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
     && dpkg-reconfigure -f noninteractive tzdata
+
+WORKDIR /app
+
+COPY . .
 
 # change user. Exec as vscode after this directive.
 USER vscode
@@ -62,16 +66,19 @@ COPY pyproject.toml uv.lock ./
 # set `--frozen` to `uv sync` on runtime
 RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
     /home/vscode/.local/bin/uv venv /home/vscode/venv \
-    && if [ -s uv.lock ]; then /home/vscode/.local/bin/uv sync; fi
+    && if [ -s uv.lock ]; then /home/vscode/.local/bin/uv sync --frozen; fi
 
 # activate venv
-RUN cat <<'EOF' >> /home/vscode/.bashrc
+# RUN cat <<'EOF' >> /home/vscode/.bashrc
 
-export LANG=$LANG
+# export LANG=$LANG
 
-if [ -n "$UV_PROJECT_ENVIRONMENT" ] &&
-    [ -f "$UV_PROJECT_ENVIRONMENT/bin/activate" ] &&
-    [ -z "$VIRTUAL_ENV" ]; then
-    . "$UV_PROJECT_ENVIRONMENT/bin/activate"
-fi
-EOF
+# if [ -n "$UV_PROJECT_ENVIRONMENT" ] &&
+#     [ -f "$UV_PROJECT_ENVIRONMENT/bin/activate" ] &&
+#     [ -z "$VIRTUAL_ENV" ]; then
+#     . "$UV_PROJECT_ENVIRONMENT/bin/activate"
+# fi
+# EOF
+
+ENTRYPOINT ["/home/vscode/.local/bin/uv", "run"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
