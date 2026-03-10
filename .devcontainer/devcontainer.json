@@ -1,6 +1,8 @@
 {
   "name": "Python",
   "workspaceFolder": "/workspaces",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
   // UID and GID is imported from .env file.
   "dockerComposeFile": "compose.yaml",
   "service": "app",
