@@ -37,6 +37,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     python3 python3-venv \
     # curl is required to install uv
     curl \
+    # http server
+    caddy \
     # System tools
     locales tzdata \
     # Configure locale

@@ -37,6 +37,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     python3 python3-venv \
     # curl is required to install uv
     curl \
+    # http server
+    caddy \
     # System tools
     locales tzdata \
     # Configure locale
@@ -80,5 +82,4 @@ RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
 # fi
 # EOF
 
-ENTRYPOINT ["/home/vscode/.local/bin/uv", "run"]
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/bin/bash", "/app/start.sh"]
