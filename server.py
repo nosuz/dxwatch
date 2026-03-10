@@ -1,5 +1,8 @@
 # pip install fastapi paho-mqtt uvicorn[standard]
 
+import sys
+from logging.handlers import RotatingFileHandler
+import logging
 import json
 import asyncio
 import random
@@ -20,7 +23,41 @@ from contextlib import asynccontextmanager
 BASE_DIR = Path(__file__).resolve().parent
 PAGES_DIR = BASE_DIR / "pages"
 STATIC_DIR = BASE_DIR / "static"
-DB_PATH = str(BASE_DIR / "spots.db")
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = str(DATA_DIR / "spots.db")
+
+
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+formatter = logging.Formatter(
+    "%(asctime)s %(levelname)s %(name)s %(message)s"
+)
+
+file_handler = RotatingFileHandler(
+    LOG_DIR / "pskreporter.log",
+    maxBytes=10 * 1024 * 1024,
+    backupCount=5,
+    encoding="utf-8"
+)
+file_handler.setFormatter(formatter)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(formatter)
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.handlers.clear()
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
+logger = logging.getLogger(__name__)
+
+for name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
+    logger = logging.getLogger(name)
+    logger.handlers.clear()
+    logger.propagate = True
 
 
 @asynccontextmanager
@@ -130,7 +167,8 @@ def db_insert(payload: str):
     now = time.time()
     cutoff = now - KEEP_SEC
     with _db_lock:
-        _db.execute("INSERT INTO spots(ts, payload) VALUES(?, ?)", (now, payload))
+        _db.execute("INSERT INTO spots(ts, payload) VALUES(?, ?)",
+                    (now, payload))
         _db.execute("DELETE FROM spots WHERE ts < ?", (cutoff,))
         _db.commit()
 
@@ -265,13 +303,13 @@ async def heartbeat_task():
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
-    print("Connected:", reason_code)
+    logger.info("Connected: %s", reason_code)
     client.subscribe(TOPIC_FROM_JP)
     client.subscribe(TOPIC_TO_JP)
     client.subscribe(TOPIC_JQ3IKN)
-    print("Subscribed:", TOPIC_FROM_JP)
-    print("Subscribed:", TOPIC_TO_JP)
-    print("Subscribed:", TOPIC_JQ3IKN)
+    logger.info("Subscribed: %s", TOPIC_FROM_JP)
+    logger.info("Subscribed: %s", TOPIC_TO_JP)
+    logger.info("Subscribed: %s", TOPIC_JQ3IKN)
 
 
 def on_message(client, userdata, msg):
@@ -339,10 +377,11 @@ def on_message(client, userdata, msg):
         db_insert(send_data)
 
         if main_loop is not None:
-            main_loop.call_soon_threadsafe(asyncio.create_task, broadcast(send_data))
+            main_loop.call_soon_threadsafe(
+                asyncio.create_task, broadcast(send_data))
 
     except Exception as exc:
-        print("Error:", exc)
+        logger.error("Error: %s", exc)
 
 
 @app.websocket("/ws")
@@ -355,7 +394,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     local = websocket.query_params.get("local") == "1"
     mycall = websocket.query_params.get("mycall", "").strip().upper()
-    clients[websocket] = {"ready": False, "mode": mode, "local": local, "mycall": mycall}
+    clients[websocket] = {"ready": False,
+                          "mode": mode, "local": local, "mycall": mycall}
 
     try:
         history = db_select_recent(mode=mode)
@@ -420,4 +460,4 @@ def redirect_root():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)

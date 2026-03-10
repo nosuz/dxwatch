@@ -17,6 +17,11 @@
 - `/my_dx` now also shows grid lines and grid labels.
 - Common JavaScript was split by responsibility so each file is shorter and easier to modify.
 
+## Required folders
+
+- logs
+- data
+
 ## Build Container
 
 ```bash
