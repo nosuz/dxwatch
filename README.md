@@ -22,10 +22,16 @@
 - logs
 - data
 
+```bash
+mkdir logs data
+```
+
 ## Build Container
 
 ```bash
-docker compose up -d --build
+docker compose build
+# build and run in background
+# docker compose up -d --build
 ```
 
 ## Transfer Docker Image
@@ -33,7 +39,8 @@ docker compose up -d --build
 ### extract image
 
 ```bash
-docker save pskreporter-pskreporter:latest -o pskreporter.tar
+docker save pskreporter-app:latest -o app.tar
+tar zcvf ~/pskreporter_image.tgz app.tar compose.yaml README.md
 ```
 
 ### transfer image
@@ -46,4 +53,18 @@ scp pskreporter.tar user@server:/tmp/
 
 ```bash
 docker load -i pskreporter.tar
+```
+
+## start image
+
+```bash
+docker compose up -d
+```
+
+`-d`が無いとフォアグラウンドで実行される。
+
+## stop image
+
+```bash
+docker compose down
 ```

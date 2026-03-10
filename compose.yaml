@@ -1,6 +1,5 @@
 services:
-  pskreporter:
-    container_name: pskreporter
+  app:
     build:
       context: .
       args:
