@@ -1,8 +1,6 @@
 # pip install fastapi paho-mqtt uvicorn[standard]
 
 import sys
-from logging.handlers import RotatingFileHandler
-import logging
 import json
 import asyncio
 import random
@@ -26,38 +24,6 @@ STATIC_DIR = BASE_DIR / "static"
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = str(DATA_DIR / "spots.db")
-
-
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-formatter = logging.Formatter(
-    "%(asctime)s %(levelname)s %(name)s %(message)s"
-)
-
-file_handler = RotatingFileHandler(
-    LOG_DIR / "pskreporter.log",
-    maxBytes=10 * 1024 * 1024,
-    backupCount=5,
-    encoding="utf-8"
-)
-file_handler.setFormatter(formatter)
-
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(formatter)
-
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-root_logger.handlers.clear()
-root_logger.addHandler(file_handler)
-root_logger.addHandler(console_handler)
-
-logger = logging.getLogger(__name__)
-
-for name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
-    logger = logging.getLogger(name)
-    logger.handlers.clear()
-    logger.propagate = True
 
 
 @asynccontextmanager
@@ -303,13 +269,13 @@ async def heartbeat_task():
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
-    logger.info("Connected: %s", reason_code)
+    print("Connected: %s", reason_code)
     client.subscribe(TOPIC_FROM_JP)
     client.subscribe(TOPIC_TO_JP)
     client.subscribe(TOPIC_JQ3IKN)
-    logger.info("Subscribed: %s", TOPIC_FROM_JP)
-    logger.info("Subscribed: %s", TOPIC_TO_JP)
-    logger.info("Subscribed: %s", TOPIC_JQ3IKN)
+    print("Subscribed: %s", TOPIC_FROM_JP)
+    print("Subscribed: %s", TOPIC_TO_JP)
+    print("Subscribed: %s", TOPIC_JQ3IKN)
 
 
 def on_message(client, userdata, msg):
@@ -381,7 +347,7 @@ def on_message(client, userdata, msg):
                 asyncio.create_task, broadcast(send_data))
 
     except Exception as exc:
-        logger.error("Error: %s", exc)
+        print("Error: %s", exc)
 
 
 @app.websocket("/ws")

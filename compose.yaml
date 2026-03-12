@@ -1,13 +1,15 @@
 services:
   app:
+    image: spkreporter:latest
+    logging:
+      driver: syslog
     build:
       context: .
       args:
         UID: ${UID:-1000}
         GID: ${GID:-1000}
     volumes:
-      - ./logs:/app/logs
       - ./data:/app/data
     ports:
-      - "8000:8000"
+      - "80:8000"
     restart: unless-stopped
