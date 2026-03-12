@@ -3,6 +3,7 @@
     const map = options.map;
     const statusEl = options.statusEl;
     const colorMap = options.colorMap;
+    const markerTtl = options.markerTtl || 180000;
 
     let markers = [];
     let ws = null;
@@ -22,7 +23,7 @@
     function cleanupMarkers() {
       const now = Date.now();
       markers = markers.filter(function (item) {
-        if (now - item.timestamp > 180000) {
+        if (now - item.timestamp > markerTtl) {
           map.removeLayer(item.marker);
           return false;
         }

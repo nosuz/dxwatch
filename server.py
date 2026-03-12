@@ -68,9 +68,9 @@ TOPIC_TO_JP = "pskr/filter/v2/+/FT8/+/+/+/+/+/339"
 TOPIC_JQ3IKN = "pskr/filter/v2/+/+/JQ3IKN/#"
 
 # ==========================
-# SQLite（直近3分保持）
+# SQLite（直近15分保持）
 # ==========================
-KEEP_SEC = 180
+KEEP_SEC = 900
 
 _db: sqlite3.Connection | None = None
 _db_lock = threading.Lock()

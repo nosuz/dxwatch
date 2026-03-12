@@ -26,6 +26,7 @@
       map,
       statusEl,
       colorMap: window.PskUi.COLOR_MAP,
+      markerTtl: config.markerTtl || 180000,
     });
 
     if (config.showStatus) {
