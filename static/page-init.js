@@ -7,12 +7,14 @@
     const modeSelect = document.getElementById('modeSelect');
     const mycallInput = document.getElementById('mycallInput');
     const saveBtn = document.getElementById('saveBtn');
+    const dxcallSelect = config.dxcallSelectId ? document.getElementById(config.dxcallSelectId) : null;
 
     const state = {
       currentMode: config.mode || (modeSelect ? modeSelect.value : 'from_jp'),
       local: !!config.local,
       requireMycall: !!config.cookieKey,
       mycall: '',
+      dxcall: '',
     };
 
     if (config.cookieKey) {
@@ -47,6 +49,18 @@
         state.currentMode = modeSelect.value;
         wsClient.resetDataAge();
         reconnect();
+      });
+    }
+
+    if (dxcallSelect) {
+      dxcallSelect.addEventListener('change', function () {
+        state.dxcall = dxcallSelect.value;
+        wsClient.clearAll();
+        wsClient.resetDataAge();
+        wsClient.disconnect();
+        if (state.dxcall) {
+          wsClient.connect(state);
+        }
       });
     }
 
@@ -86,6 +100,10 @@
       }
       if (mycallInput) {
         mycallInput.focus();
+      }
+    } else if (config.dxcallSelectId && !state.dxcall) {
+      if (statusEl) {
+        statusEl.textContent = 'status: select a DX-pedition';
       }
     } else if (!document.hidden) {
       wsClient.connect(state);

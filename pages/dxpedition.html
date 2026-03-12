@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>PSKReporter Local</title>
+<title>PSKReporter DX-pedition</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <link rel="stylesheet" href="/static/app.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -16,33 +16,49 @@
 <body>
 <div id="topbar">
   <div id="legend"></div>
-  <div id="status" style="min-width: 420px;">
+  <div id="status" style="min-width: 360px;">
     <a href="/dx" style="color:#aaa; margin-right:10px; text-decoration:none;">DX</a>
-    <a href="/local" style="color:#0ff; margin-right:10px; text-decoration:none;">LOCAL</a>
+    <a href="/local" style="color:#aaa; margin-right:10px; text-decoration:none;">LOCAL</a>
     <a href="/my_dx" style="color:#aaa; margin-right:10px; text-decoration:none;">MY DX</a>
-    <a href="/dxpedition" style="color:#aaa; margin-right:15px; text-decoration:none;">DX-PEDITION</a>
+    <a href="/dxpedition" style="color:#0ff; margin-right:15px; text-decoration:none;">DX-PEDITION</a>
 
-    <span style="color:#aaa;">JP↔JP</span>
-    <select id="modeSelect">
-      <option value="from_jp">JP→JP (marker=RL)</option>
-      <option value="to_jp">JP→JP (marker=SL)</option>
+    <select id="dxcallSelect">
+      <option value="">-- Select DX-pedition --</option>
     </select>
     <span id="statusText">status: initializing...</span>
   </div>
 </div>
 <div id="map"></div>
 <script>
+fetch('/api/dxpeditions')
+  .then(function (r) { return r.json(); })
+  .then(function (list) {
+    var sel = document.getElementById('dxcallSelect');
+    list.forEach(function (d) {
+      var opt = document.createElement('option');
+      opt.value = d.callsign;
+      opt.textContent = d.entity_name ? d.callsign + ' (' + d.entity_name + ')' : d.callsign;
+      sel.appendChild(opt);
+    });
+    if (list.length === 1) {
+      sel.value = list[0].callsign;
+      sel.dispatchEvent(new Event('change'));
+    }
+  });
+
 initPskReporterPage({
-  mode: 'from_jp',
-  local: true,
+  mode: 'dxpedition',
+  local: false,
   cookieKey: null,
+  markerTtl: 900000,
   showStatus: true,
+  dxcallSelectId: 'dxcallSelect',
   map: {
-    center: [36.2, 138.2],
-    zoom: 5,
-    minZoom: 5,
+    center: [0, 0],
+    zoom: 3,
+    minZoom: 3,
     maxZoom: 11,
-    maxBounds: [[20.0, 122.0], [46.5, 154.0]],
+    maxBounds: [[-90, -200], [90, 200]],
     showGrid: true,
     showTerminator: true
   }

@@ -12,6 +12,7 @@
     let lastMqttTsFrom = 0;
     let lastMqttTsTo = 0;
     let lastMqttTsJq = 0;
+    let lastMqttTsDx = 0;
 
     function clearAll() {
       markers.forEach(function (item) {
@@ -41,6 +42,9 @@
       }
       if (state.mycall) {
         url += '&mycall=' + encodeURIComponent(state.mycall);
+      }
+      if (state.dxcall) {
+        url += '&dxcall=' + encodeURIComponent(state.dxcall);
       }
       return url;
     }
@@ -83,11 +87,15 @@
           if (typeof data.last_mqtt_ts_jq3ikn === 'number' && data.last_mqtt_ts_jq3ikn > 0) {
             lastMqttTsJq = data.last_mqtt_ts_jq3ikn * 1000;
           }
+          if (typeof data.last_mqtt_ts_dxpedition === 'number' && data.last_mqtt_ts_dxpedition > 0) {
+            lastMqttTsDx = data.last_mqtt_ts_dxpedition * 1000;
+          }
           return;
         }
 
         if (data.type !== 'spot') return;
         if (data.mode && data.mode !== state.currentMode) return;
+        if (state.currentMode === 'dxpedition' && state.dxcall && data.dxcall && data.dxcall !== state.dxcall) return;
 
         lastData = Date.now();
 
@@ -123,9 +131,10 @@
         const now = Date.now();
         const hbStale = (now - lastHb > 30000);
         const mode = getCurrentMode();
-        const mqttTs = mode === 'from_jp'
-          ? lastMqttTsFrom
-          : (mode === 'to_jp' ? lastMqttTsTo : lastMqttTsJq);
+        const mqttTs = mode === 'from_jp' ? lastMqttTsFrom
+          : mode === 'to_jp' ? lastMqttTsTo
+          : mode === 'dxpedition' ? lastMqttTsDx
+          : lastMqttTsJq;
         const mqttStale = mqttTs ? (now - mqttTs > 30000) : true;
         const dataStale = (now - lastData > 30000);
 
