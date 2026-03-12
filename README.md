@@ -68,3 +68,14 @@ docker compose up -d
 ```bash
 docker compose down
 ```
+
+## Insert or Update DX-pedition data
+
+```bash
+# Single expedition
+echo '[{"callsign":"3Y0K","entity_name":"Bouvet Island","start_dt":"2026-03-01","end_dt":"2026-03-18"}]' > /tmp/dx.json
+python dxpedition_cli.py /tmp/dx.json
+
+# Custom DB path
+python dxpedition_cli.py dx.json --db /path/to/data/spots.db
+```
