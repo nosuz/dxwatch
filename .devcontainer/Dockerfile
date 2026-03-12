@@ -34,9 +34,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && apt-get install --no-install-recommends -y \
     # ssh is required to handle GitHub in the container
     git ssh \
-    python3 python3-venv \
-    # curl is required to install uv
-    curl \
+    python3 \
     # http server
     caddy \
     # System tools
@@ -53,6 +51,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
     && apt-get install -y \
+    # curl is required to install npm
+    curl \
     # Node.js
     nodejs npm \
     # # pdftotext
@@ -75,6 +75,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt purge -y nodejs npm \
     && apt autoremove -y
 
+# install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 # change user. Exec as vscode after this directive.
 USER vscode
 
@@ -82,9 +85,6 @@ USER vscode
 ARG CLAUDE_BUST=0
 RUN echo "CLAUDE_BUST=$CLAUDE_BUST" \
     && curl -fsSL https://claude.ai/install.sh | bash
-
-# install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ENV UV_PROJECT_ENVIRONMENT=/home/vscode/venv
 ARG UV_CACHE_DIR=/home/vscode/.cache/uv
@@ -95,8 +95,8 @@ RUN mkdir -p $UV_CACHE_DIR
 COPY pyproject.toml uv.lock ./
 # set `--frozen` to `uv sync` on runtime
 RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
-    /home/vscode/.local/bin/uv venv /home/vscode/venv \
-    && if [ -s uv.lock ]; then /home/vscode/.local/bin/uv sync; fi
+    uv venv /home/vscode/venv \
+    && if [ -s uv.lock ]; then uv sync; fi
 
 # activate venv
 RUN cat <<'EOF' >> /home/vscode/.bashrc
