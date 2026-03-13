@@ -38,7 +38,7 @@ docker compose build
 ### extract image
 
 ```bash
-docker save pskreporter-app:latest -o app.tar
+docker save pskreporter:latest -o app.tar
 tar zcvf ~/pskreporter_image.tgz app.tar compose.yaml README.md
 ```
 
