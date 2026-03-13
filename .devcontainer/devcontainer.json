@@ -29,7 +29,8 @@
         // ms-python.python install Pylance and Python Debugger
         "ms-python.python",
         // "kevinrose.vsc-python-indent",
-        "esbenp.prettier-vscode"
+        "esbenp.prettier-vscode",
+        "yy0931.vscode-sqlite3-editor"
       ]
     }
   }
