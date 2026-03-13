@@ -1,0 +1,9 @@
+.devcontainer/
+.vscode/
+.git/
+.gitignore
+.claude/
+.codex/
+CLAUDE.md
+README.md
+compose.yaml
