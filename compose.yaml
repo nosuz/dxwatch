@@ -1,6 +1,6 @@
 services:
   app:
-    image: spkreporter:latest
+    image: spkreporter
     logging:
       driver: syslog
     build:
