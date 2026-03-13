@@ -60,9 +60,12 @@ RUN mkdir -p $UV_CACHE_DIR
 
 COPY . .
 
-# blank uv.lock is just place holder.
-# remove this before adding the initial library.
-COPY pyproject.toml uv.lock ./
+# change user. Exec as vscode after this directive.
+USER vscode
+
+# Disable development dependencies
+ENV UV_NO_DEV=1
+
 # set `--frozen` to `uv sync` on runtime
 RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
     uv venv /home/vscode/venv \

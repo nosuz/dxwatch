@@ -19,11 +19,10 @@
 
 ## Required folders
 
-- logs
 - data
 
 ```bash
-mkdir logs data
+mkdir data
 ```
 
 ## Build Container
@@ -68,6 +67,12 @@ docker compose up -d
 ```bash
 docker compose down
 ```
+
+## get into container
+
+```bash
+ docker exec -it  <CONTAINER ID or NAME> /bin/bash
+ ```
 
 ## Insert or Update DX-pedition data
 
