@@ -46,50 +46,50 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && ln -fs /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
     && dpkg-reconfigure -f noninteractive tzdata
 
-# install npm
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update \
-    && apt-get install -y \
-    # curl is required to install npm
-    curl \
-    # Node.js
-    nodejs npm \
-    # # pdftotext
-    # python3-dev poppler-utils libpoppler-cpp-dev \
-    # # OCR
-    # tesseract-ocr tesseract-ocr-eng poppler-utils ocrmypdf ghostscript \
-    # Claude Code
-    build-essential \
-    gnupg2 \
-    less \
-    fzf \
-    zsh \
-    man-db \
-    unzip \
-    gh \
-    jq \
-    # install n
-    && npm install n -g \
-    && n stable \
-    && apt purge -y nodejs npm \
-    && apt autoremove -y
+# # install npm
+# RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+#     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+#     apt-get update \
+#     && apt-get install -y \
+#     # curl is required to install npm
+#     curl \
+#     # Node.js
+#     nodejs npm \
+#     # # pdftotext
+#     # python3-dev poppler-utils libpoppler-cpp-dev \
+#     # # OCR
+#     # tesseract-ocr tesseract-ocr-eng poppler-utils ocrmypdf ghostscript \
+#     # Claude Code
+#     build-essential \
+#     gnupg2 \
+#     less \
+#     fzf \
+#     zsh \
+#     man-db \
+#     unzip \
+#     gh \
+#     jq \
+#     # install n
+#     && npm install n -g \
+#     && n stable \
+#     && apt purge -y nodejs npm \
+#     && apt autoremove -y
 
 # install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# install Codex
-ARG CODEX_BUST=0
-RUN echo "CODEX_BUST=$CODEX_BUST" \
-    && npm i -g @openai/codex
+# # install Codex
+# ARG CODEX_BUST=0
+# RUN echo "CODEX_BUST=$CODEX_BUST" \
+#     && npm i -g @openai/codex
 
 # change user. Exec as vscode after this directive.
 USER vscode
 
-# install Caude
-ARG CLAUDE_BUST=0
-RUN echo "CLAUDE_BUST=$CLAUDE_BUST" \
-    && curl -fsSL https://claude.ai/install.sh | bash
+# # install Caude
+# ARG CLAUDE_BUST=0
+# RUN echo "CLAUDE_BUST=$CLAUDE_BUST" \
+#     && curl -fsSL https://claude.ai/install.sh | bash
 
 ENV UV_PROJECT_ENVIRONMENT=/home/vscode/venv
 ARG UV_CACHE_DIR=/home/vscode/.cache/uv
