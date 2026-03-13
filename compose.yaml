@@ -1,15 +1,14 @@
 services:
-  app:
-    image: spkreporter
+  web:
+    image: dxwatch
     logging:
       driver: syslog
+    environment:
+      TZ: Asia/Tokyo
     build:
       context: .
-      args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
     volumes:
       - ./data:/app/data
     ports:
-      - "80:8000"
+      - "8000:8000"
     restart: unless-stopped
