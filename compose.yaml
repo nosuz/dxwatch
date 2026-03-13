@@ -12,3 +12,13 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+
+  update:
+    image: dxwatch
+    logging:
+      driver: syslog
+    volumes:
+      - ./data:/app/data
+    entrypoint: ["uv", "run", "python"]
+    command: ["/app/dxpedition_cli.py"]
+    restart: "no"

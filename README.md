@@ -80,10 +80,10 @@ docker compose down
 # Single expedition
 echo '[{"callsign":"3Y0K","entity_name":"Bouvet Island","start_dt":"2026-03-01","end_dt":"2026-03-18"}]' > /tmp/dx.json
 python dxpedition_cli.py /tmp/dx.json
+
+cat /tmp/dx.json | docker compose run --rm -T update
 # restart server to update connections
 
-# Custom DB path
-python dxpedition_cli.py dx.json --db /path/to/data/spots.db
 ```
 
 ## `dx.json` template

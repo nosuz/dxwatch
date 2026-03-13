@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CLI tool to insert or update DX-pedition records from a JSON file.
+"""CLI tool to insert or update DX-pedition records from JSON.
 
 Usage:
     python dxpedition_cli.py data.json
-    python dxpedition_cli.py data.json --db path/to/spots.db
+    cat data.json | python dxpedition_cli.py
 
 JSON format — single object or array of objects:
     [
@@ -37,7 +37,8 @@ def upsert(db: sqlite3.Connection, record: dict) -> str:
     if not callsign:
         raise ValueError("'callsign' field is required")
 
-    cur = db.execute("SELECT id FROM dxpedition WHERE callsign = ?", (callsign,))
+    cur = db.execute(
+        "SELECT id FROM dxpedition WHERE callsign = ?", (callsign,))
     row = cur.fetchone()
 
     if row:
@@ -80,25 +81,34 @@ def upsert(db: sqlite3.Connection, record: dict) -> str:
         return "inserted"
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Insert or update DX-pedition records from a JSON file."
-    )
-    parser.add_argument("json_file", help="JSON file (single object or array of objects)")
-    parser.add_argument("--db", default=DEFAULT_DB, help=f"SQLite DB path (default: {DEFAULT_DB})")
-    args = parser.parse_args()
-
-    path = Path(args.json_file)
-    if not path.exists():
-        print(f"Error: file not found: {path}", file=sys.stderr)
+def load_json_input(json_file: str | None):
+    try:
+        if json_file is not None:
+            path = Path(json_file)
+            if not path.exists():
+                print(f"Error: file not found: {path}", file=sys.stderr)
+                sys.exit(1)
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        else:
+            return json.load(sys.stdin)
+    except json.JSONDecodeError as e:
+        print(f"Error: invalid JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
-    with open(path) as f:
-        try:
-            data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error: invalid JSON: {e}", file=sys.stderr)
-            sys.exit(1)
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Insert or update DX-pedition records from JSON."
+    )
+    parser.add_argument(
+        "json_file",
+        nargs="?",
+        help="JSON file (single object or array of objects). If omitted, read from stdin.",
+    )
+    args = parser.parse_args()
+
+    data = load_json_input(args.json_file)
 
     if isinstance(data, dict):
         records = [data]
@@ -108,7 +118,7 @@ def main():
         print("Error: JSON must be an object or array of objects", file=sys.stderr)
         sys.exit(1)
 
-    db_path = Path(args.db)
+    db_path = Path(DEFAULT_DB)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     db = sqlite3.connect(str(db_path))
@@ -130,10 +140,13 @@ def main():
         """
     )
     db.commit()
+
     errors = 0
     try:
         for record in records:
             try:
+                if not isinstance(record, dict):
+                    raise ValueError("each record must be a JSON object")
                 action = upsert(db, record)
                 callsign = (record.get("callsign") or "").strip().upper()
                 print(f"{action}: {callsign}")
