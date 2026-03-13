@@ -4,3 +4,5 @@ __pycache__/
 *.db-journal
 logs/
 data/
+.claude/
+.codex/

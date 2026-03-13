@@ -78,6 +78,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# install Codex
+ARG CODEX_BUST=0
+RUN echo "CODEX_BUST=$CODEX_BUST" \
+    && npm i -g @openai/codex
+
 # change user. Exec as vscode after this directive.
 USER vscode
 
