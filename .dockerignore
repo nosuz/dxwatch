@@ -4,6 +4,7 @@
 .gitignore
 .claude/
 .codex/
+__pycache__/
 CLAUDE.md
 README.md
 compose.yaml

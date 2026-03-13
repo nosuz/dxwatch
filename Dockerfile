@@ -57,14 +57,15 @@ USER vscode
 ENV UV_PROJECT_ENVIRONMENT=/home/vscode/venv
 ARG UV_CACHE_DIR=/home/vscode/.cache/uv
 RUN mkdir -p $UV_CACHE_DIR
+# Disable development dependencies
+ENV UV_NO_DEV=1
+# specify `__pycache__` directory
+ENV PYTHONPYCACHEPREFIX=/tmp/pycache
 
 COPY . .
 
 # change user. Exec as vscode after this directive.
 USER vscode
-
-# Disable development dependencies
-ENV UV_NO_DEV=1
 
 # set `--frozen` to `uv sync` on runtime
 RUN --mount=type=cache,target=$UV_CACHE_DIR,uid=$UID,gid=$UID,sharing=locked \
