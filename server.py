@@ -175,7 +175,8 @@ def get_active_dxpeditions() -> list[dict]:
 
 def sync_dxpedition_subscriptions():
     global dxpedition_subscribed_callsigns
-    active = {row["callsign"].upper() for row in get_active_dxpeditions()}
+    active = {row["callsign"].upper().replace('/', '%2F')
+              for row in get_active_dxpeditions()}
     if mqtt_client is not None:
         for cs in dxpedition_subscribed_callsigns - active:
             mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/{cs}/#")
