@@ -150,9 +150,12 @@ def db_init():
             )
             """
         )
-        _db.execute("CREATE INDEX IF NOT EXISTS idx_dxpedition_callsign ON dxpedition(callsign)")
-        _db.execute("CREATE INDEX IF NOT EXISTS idx_dxpedition_dxcc ON dxpedition(dxcc)")
-        _db.execute("CREATE INDEX IF NOT EXISTS idx_dxpedition_dates ON dxpedition(start_dt, end_dt)")
+        _db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dxpedition_callsign ON dxpedition(callsign)")
+        _db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dxpedition_dxcc ON dxpedition(dxcc)")
+        _db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dxpedition_dates ON dxpedition(start_dt, end_dt)")
         _db.commit()
 
 
@@ -319,7 +322,8 @@ async def broadcast(message: str):
 async def daily_sync_task():
     while True:
         now = datetime.now(timezone.utc)
-        next_midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        next_midnight = (now + timedelta(days=1)).replace(hour=0,
+                                                          minute=0, second=0, microsecond=0)
         await asyncio.sleep((next_midnight - now).total_seconds())
         sync_dxpedition_subscriptions()
 
@@ -485,7 +489,6 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
     finally:
         clients.pop(websocket, None)
-
 
 
 @app.get("/api/dxpeditions")
