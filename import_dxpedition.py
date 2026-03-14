@@ -5,15 +5,14 @@ Behavior:
 - Reads all Excel files matching data/DX*.xlsx
 - Uses the first sheet in each workbook
 - Treats the first row as header
-- Upserts records into data/spots.db
-- If 'id' column exists and has a value, update that row by id
-- Otherwise upsert by callsign (case-insensitive)
+- Inserts records into data/spots.db by default
+- If 'id' column exists and has a value:
+    - update that row if id exists
+    - otherwise insert a new row with that id
 - Moves successfully processed xlsx files into data/backup/
 
 Expected useful columns:
     id, callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes
-
-Extra columns such as created_at / updated_at are allowed and ignored on import.
 """
 
 import shutil
@@ -42,8 +41,6 @@ IMPORT_COLUMNS = {
     "created_at",
     "updated_at",
 }
-
-REQUIRED_IF_NO_ID = "callsign"
 
 
 def normalize_value(value):
@@ -75,12 +72,9 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         )
         """
     )
-    db.execute(
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_dxpedition_callsign
-        ON dxpedition(callsign)
-        """
-    )
+
+    # 以前の callsign UNIQUE INDEX が残っていると困るので削除
+    db.execute("DROP INDEX IF EXISTS idx_dxpedition_callsign")
     db.commit()
 
 
@@ -95,8 +89,8 @@ def load_records_from_xlsx(path: Path) -> list[dict]:
     header = [str(c).strip() if c is not None else "" for c in rows[0]]
     header_set = {h for h in header if h}
 
-    if "id" not in header_set and REQUIRED_IF_NO_ID not in header_set:
-        raise ValueError("either 'id' or 'callsign' column is required")
+    if "callsign" not in header_set:
+        raise ValueError("'callsign' column is required")
 
     records = []
     for row_index, row in enumerate(rows[1:], start=2):
@@ -116,71 +110,42 @@ def load_records_from_xlsx(path: Path) -> list[dict]:
         if is_all_empty:
             continue
 
-        # id があれば整数化
         if record.get("id") is not None:
             try:
                 record["id"] = int(record["id"])
             except Exception as e:
                 raise ValueError(
-                    f"row {row_index}: invalid id: {record['id']}") from e
+                    f"row {row_index}: invalid id: {record['id']}"
+                ) from e
 
-        # dxcc があれば整数化
         if record.get("dxcc") is not None:
             try:
                 record["dxcc"] = int(record["dxcc"])
             except Exception as e:
                 raise ValueError(
-                    f"row {row_index}: invalid dxcc: {record['dxcc']}") from e
+                    f"row {row_index}: invalid dxcc: {record['dxcc']}"
+                ) from e
 
-        # id が無い場合は callsign 必須
-        if record.get("id") is None:
-            callsign = (record.get("callsign") or "").strip()
-            if not callsign:
-                raise ValueError(
-                    f"row {row_index}: callsign is required when id is not specified")
+        callsign = (record.get("callsign") or "").strip().upper()
+        if not callsign:
+            raise ValueError(f"row {row_index}: callsign is required")
+        record["callsign"] = callsign
 
         records.append(record)
 
     return records
 
 
-def update_by_id(db: sqlite3.Connection, record: dict) -> str:
-    record_id = record.get("id")
-    if record_id is None:
-        raise ValueError("'id' is required for update_by_id")
-
-    cur = db.execute("SELECT id FROM dxpedition WHERE id = ?", (record_id,))
-    row = cur.fetchone()
-    if not row:
-        raise ValueError(f"id not found: {record_id}")
-
-    callsign = record.get("callsign")
-    if callsign is not None:
-        callsign = callsign.strip().upper()
-        if not callsign:
-            raise ValueError("callsign cannot be empty when specified")
-    else:
-        cur = db.execute(
-            "SELECT callsign FROM dxpedition WHERE id = ?", (record_id,))
-        existing = cur.fetchone()
-        callsign = existing[0]
-
+def insert_record(db: sqlite3.Connection, record: dict) -> str:
     db.execute(
         """
-        UPDATE dxpedition
-        SET callsign=?,
-            entity_name=?,
-            dxcc=?,
-            grid=?,
-            start_dt=?,
-            end_dt=?,
-            url=?,
-            notes=?,
-            updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
-        WHERE id=?
+        INSERT INTO dxpedition(
+            callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes
+        )
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            callsign,
+            record.get("callsign"),
             record.get("entity_name"),
             record.get("dxcc"),
             record.get("grid"),
@@ -188,26 +153,25 @@ def update_by_id(db: sqlite3.Connection, record: dict) -> str:
             record.get("end_dt"),
             record.get("url"),
             record.get("notes"),
-            record_id,
         ),
     )
-    return "updated"
+    return "inserted"
 
 
-def upsert_by_callsign(db: sqlite3.Connection, record: dict) -> str:
-    callsign = (record.get("callsign") or "").strip().upper()
-    if not callsign:
-        raise ValueError("'callsign' field is required")
+def upsert_by_id(db: sqlite3.Connection, record: dict) -> str:
+    record_id = record.get("id")
+    if record_id is None:
+        raise ValueError("'id' is required for upsert_by_id")
 
-    cur = db.execute(
-        "SELECT id FROM dxpedition WHERE callsign = ?", (callsign,))
+    cur = db.execute("SELECT id FROM dxpedition WHERE id = ?", (record_id,))
     row = cur.fetchone()
 
     if row:
         db.execute(
             """
             UPDATE dxpedition
-            SET entity_name=?,
+            SET callsign=?,
+                entity_name=?,
                 dxcc=?,
                 grid=?,
                 start_dt=?,
@@ -215,9 +179,10 @@ def upsert_by_callsign(db: sqlite3.Connection, record: dict) -> str:
                 url=?,
                 notes=?,
                 updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
-            WHERE callsign=?
+            WHERE id=?
             """,
             (
+                record.get("callsign"),
                 record.get("entity_name"),
                 record.get("dxcc"),
                 record.get("grid"),
@@ -225,36 +190,37 @@ def upsert_by_callsign(db: sqlite3.Connection, record: dict) -> str:
                 record.get("end_dt"),
                 record.get("url"),
                 record.get("notes"),
-                callsign,
+                record_id,
             ),
         )
         return "updated"
-    else:
-        db.execute(
-            """
-            INSERT INTO dxpedition(
-                callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes
-            )
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                callsign,
-                record.get("entity_name"),
-                record.get("dxcc"),
-                record.get("grid"),
-                record.get("start_dt"),
-                record.get("end_dt"),
-                record.get("url"),
-                record.get("notes"),
-            ),
+
+    db.execute(
+        """
+        INSERT INTO dxpedition(
+            id, callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes
         )
-        return "inserted"
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record_id,
+            record.get("callsign"),
+            record.get("entity_name"),
+            record.get("dxcc"),
+            record.get("grid"),
+            record.get("start_dt"),
+            record.get("end_dt"),
+            record.get("url"),
+            record.get("notes"),
+        ),
+    )
+    return "inserted"
 
 
 def import_record(db: sqlite3.Connection, record: dict) -> str:
     if record.get("id") is not None:
-        return update_by_id(db, record)
-    return upsert_by_callsign(db, record)
+        return upsert_by_id(db, record)
+    return insert_record(db, record)
 
 
 def move_to_backup(src: Path) -> Path:
@@ -285,8 +251,11 @@ def process_file(db: sqlite3.Connection, path: Path) -> tuple[int, int]:
 
     for record in records:
         action = import_record(db, record)
-        label = f"id={record['id']}" if record.get("id") is not None else (
-            record.get("callsign") or "").strip().upper()
+        label = (
+            f"id={record['id']}"
+            if record.get("id") is not None
+            else record.get("callsign")
+        )
         print(f"{action}: {label}")
         if action == "inserted":
             inserted += 1
@@ -327,7 +296,8 @@ def main() -> None:
                 failed += 1
 
         print(
-            f"done: inserted={total_inserted}, updated={total_updated}, failed_files={failed}")
+            f"done: inserted={total_inserted}, updated={total_updated}, failed_files={failed}"
+        )
 
         if failed:
             sys.exit(1)
