@@ -1,5 +1,5 @@
 (function () {
-  function initPskReporterPage(config) {
+  function initDXWatchPage(config) {
     window.PskUi.fillLegend();
 
     const map = window.PskMap.createMap(config.map);
@@ -118,5 +118,5 @@
     });
   }
 
-  window.initPskReporterPage = initPskReporterPage;
+  window.initDXWatchPage = initDXWatchPage;
 })();
