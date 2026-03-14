@@ -3,8 +3,7 @@ services:
     image: dxwatch
     logging:
       driver: syslog
-    environment:
-      TZ: Asia/Tokyo
+    user: "${UID:-1000}:${GID:-1000}"
     build:
       context: .
     volumes:
@@ -17,6 +16,7 @@ services:
     image: dxwatch
     logging:
       driver: syslog
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./data:/app/data
     entrypoint: ["uv", "run", "python"]
@@ -27,6 +27,7 @@ services:
     image: dxwatch
     logging:
       driver: syslog
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./data:/app/data
     entrypoint: ["uv", "run", "python"]
