@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     && apt-get install --no-install-recommends -y \
     # ssh is required to handle GitHub in the container
     git ssh \
-    python3 \
+    python3 ca-certificates \
     # System tools
     locales tzdata \
     # Configure locale
