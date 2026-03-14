@@ -74,16 +74,26 @@ docker compose down
  docker exec -it  <CONTAINER ID or NAME> /bin/bash
  ```
 
-## Insert or Update DX-pedition data
+## Export DX-pedition data
 
 ```bash
-# Single expedition
-echo '[{"callsign":"3Y0K","entity_name":"Bouvet Island","start_dt":"2026-03-01","end_dt":"2026-03-18"}]' > /tmp/dx.json
-python dxpedition_cli.py /tmp/dx.json
-
-cat /tmp/dx.json | docker compose run --rm -T update
+docker compose run --rm export
 # restart server to update connections
+```
 
+## Insert or Update DX-pedition data
+
+Make a Excel (xlsx) file that have following columns.
+
+```csv
+callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes
+```
+
+if the data have an `id` column, the matching rows will be replaced.
+
+```bash
+docker compose run --rm import
+# restart server to update connections
 ```
 
 ## `dx.json` template
