@@ -1,4 +1,31 @@
 (function () {
+  const STORAGE_KEY = 'pskr_mydx_buffer';
+
+  function saveSpotToStorage(spot) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      let spots = raw ? JSON.parse(raw) : [];
+      spots.push(spot);
+      const cutoff = Date.now() - 900000;  // prune >15 min
+      spots = spots.filter(function (s) { return (s._ts || 0) >= cutoff; });
+      if (spots.length > 1000) spots = spots.slice(-1000);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(spots));
+    } catch (e) {}
+  }
+
+  function loadSpotsFromStorage(mycall, markerTtl) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const cutoff = Date.now() - markerTtl;
+      const call = mycall.toUpperCase();
+      return JSON.parse(raw).filter(function (s) {
+        if ((s._ts || 0) < cutoff) return false;
+        return (s.sc || '').toUpperCase() === call || (s.rc || '').toUpperCase() === call;
+      });
+    } catch (e) { return []; }
+  }
+
   function maidenheadToLatLon(locator) {
     locator = locator.trim().toUpperCase();
     if (locator.length < 4) throw new Error('locator too short');
@@ -32,13 +59,18 @@
     const colorMap = options.colorMap;
     const markerTtl = options.markerTtl || 180000;
 
-    let mqttClient = null;
+    let worker = null;
+    let workerPort = null;
     let markers = [];
     let lastData = 0;
+    let currentMycall = '';
+    // Dedup spots that arrive from both localStorage and worker replay
+    const plottedTs = new Set();
 
     function clearAll() {
       markers.forEach(function (item) { map.removeLayer(item.marker); });
       markers = [];
+      plottedTs.clear();
     }
 
     function cleanupMarkers() {
@@ -54,20 +86,26 @@
 
     setInterval(cleanupMarkers, 10000);
 
-    function processMessage(payload, mycall) {
-      const data = JSON.parse(payload.toString());
-      const sc = (data.sc || '').toUpperCase();
-      const rc = (data.rc || '').toUpperCase();
-      const call = mycall.toUpperCase();
+    function plotSpot(spot, skipStorage) {
+      const sc = (spot.sc || '').toUpperCase();
+      const rc = (spot.rc || '').toUpperCase();
+      const call = currentMycall.toUpperCase();
 
       let markerLocator = null;
-      if (sc === call && data.rl) {
-        markerLocator = data.rl;  // mycall is sender → plot receiver location
-      } else if (rc === call && data.sl) {
-        markerLocator = data.sl;  // mycall is receiver → plot sender location
+      if (sc === call && spot.rl) {
+        markerLocator = spot.rl;  // mycall is sender → plot receiver location
+      } else if (rc === call && spot.sl) {
+        markerLocator = spot.sl;  // mycall is receiver → plot sender location
       } else {
         return;
       }
+
+      const timestamp = (typeof spot._ts === 'number') ? spot._ts : Date.now();
+
+      // Deduplicate: skip if already plotted (e.g. from both storage and worker replay)
+      const key = sc + '_' + rc + '_' + timestamp;
+      if (plottedTs.has(key)) return;
+      plottedTs.add(key);
 
       let lat, lon;
       try {
@@ -77,8 +115,9 @@
         return;
       }
 
-      lastData = Date.now();
-      const bValue = parseInt((data.b || '').replace('m', ''), 10);
+      lastData = Math.max(lastData, timestamp);
+
+      const bValue = parseInt((spot.b || '').replace('m', ''), 10);
       const color = colorMap[bValue] || 'gray';
 
       const marker = L.circleMarker([lat, lon], {
@@ -88,61 +127,54 @@
         fillOpacity: 0.8,
       }).addTo(map);
 
-      markers.push({ marker, timestamp: lastData });
+      markers.push({ marker, timestamp });
       cleanupMarkers();
+
+      if (!skipStorage) saveSpotToStorage(spot);
+    }
+
+    function ensureWorker() {
+      if (workerPort) return workerPort;
+      worker = new SharedWorker('/static/mqtt-worker.js');
+      workerPort = worker.port;
+      workerPort.onmessage = function (e) {
+        const msg = e.data;
+        if (!msg) return;
+        if (msg.type === 'status') {
+          if (statusEl) statusEl.textContent = 'status: ' + msg.text;
+        } else if (msg.type === 'spot') {
+          plotSpot(msg.spot, false);
+        } else if (msg.type === 'replay') {
+          (msg.spots || []).forEach(function (s) { plotSpot(s, true); });
+        }
+      };
+      workerPort.start();
+      return workerPort;
     }
 
     function connect(mycall) {
       if (!mycall) return;
-      disconnect();
+      currentMycall = mycall;
       clearAll();
-      if (statusEl) statusEl.textContent = 'status: connecting to MQTT...';
-
-      const c = mqtt.connect('wss://mqtt.pskreporter.info:1886', {
-        keepalive: 60,
-        reconnectPeriod: 5000,
-        clean: true,
-      });
-      mqttClient = c;
-
-      c.on('connect', function () {
-        if (statusEl) statusEl.textContent = 'status: MQTT connected';
-        c.subscribe('pskr/filter/v2/+/+/' + mycall + '/#');
-        c.subscribe('pskr/filter/v2/+/+/+/' + mycall + '/#');
-      });
-
-      c.on('message', function (topic, payload) {
-        try {
-          processMessage(payload, mycall);
-        } catch (e) {
-          console.error('MQTT message error:', e);
-        }
-      });
-
-      c.on('error', function (err) {
-        if (statusEl) statusEl.textContent = 'status: MQTT error';
-        console.error('MQTT error:', err);
-      });
-
-      c.on('close', function () {
-        if (statusEl) statusEl.textContent = 'status: MQTT disconnected';
-      });
+      // Plot backlog from localStorage first (survives worker restarts)
+      loadSpotsFromStorage(mycall, markerTtl).forEach(function (s) { plotSpot(s, true); });
+      const port = ensureWorker();
+      port.postMessage({ type: 'setMycall', mycall: mycall });
     }
 
     function disconnect() {
-      if (!mqttClient) return;
-      try { mqttClient.end(true); } catch (e) {}
-      mqttClient = null;
+      currentMycall = '';
+      if (workerPort) {
+        workerPort.postMessage({ type: 'clearMycall' });
+      }
     }
 
     function startStatusTimer() {
       setInterval(function () {
-        if (!statusEl || !mqttClient || !mqttClient.connected) return;
+        if (!statusEl || !workerPort) return;
         const now = Date.now();
         if (now - lastData > 30000) {
-          statusEl.textContent = 'status: MQTT connected, no recent spots';
-        } else {
-          statusEl.textContent = 'status: receiving';
+          // status is managed by worker messages; only override if stale
         }
       }, 1000);
     }

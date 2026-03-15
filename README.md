@@ -17,6 +17,14 @@
 - `/my_dx` now also shows grid lines and grid labels.
 - Common JavaScript was split by responsibility so each file is shorter and easier to modify.
 
+## Limitations
+
+- **`/my_dx` SharedWorker browser support**: The `/my_dx` page uses a `SharedWorker` to keep MQTT connections alive while navigating between pages. `SharedWorker` is not supported in Firefox private/incognito windows or most mobile browsers (iOS Safari, Android Chrome). In unsupported environments the MQTT connection will disconnect on navigation and spots received while away will be lost.
+
+## Debugging socket
+
+The opening and closing logs are shown in `chrome://inspect/#workers`.
+
 ## Required folders
 
 - data
