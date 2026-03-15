@@ -64,6 +64,7 @@
     let markers = [];
     let lastData = 0;
     let currentMycall = '';
+    let currentMqttMode = 'both';  // 'tx', 'rx', or 'both'
     // Dedup spots that arrive from both localStorage and worker replay
     const plottedTs = new Set();
 
@@ -92,9 +93,9 @@
       const call = currentMycall.toUpperCase();
 
       let markerLocator = null;
-      if (sc === call && spot.rl) {
+      if (sc === call && spot.rl && currentMqttMode !== 'rx') {
         markerLocator = spot.rl;  // mycall is sender → plot receiver location
-      } else if (rc === call && spot.sl) {
+      } else if (rc === call && spot.sl && currentMqttMode !== 'tx') {
         markerLocator = spot.sl;  // mycall is receiver → plot sender location
       } else {
         return;
@@ -152,9 +153,10 @@
       return workerPort;
     }
 
-    function connect(mycall) {
+    function connect(mycall, mode) {
       if (!mycall) return;
       currentMycall = mycall;
+      currentMqttMode = mode || 'both';
       clearAll();
       // Plot backlog from localStorage first (survives worker restarts)
       loadSpotsFromStorage(mycall, markerTtl).forEach(function (s) { plotSpot(s, true); });

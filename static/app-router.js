@@ -35,7 +35,13 @@
     '/my_dx': {
       title: 'DX Watch: MyDX',
       type: 'mqtt',
+      defaultMode: 'tx',
       markerTtl: 180000,
+      showModeSelect: true,
+      modeOptions: [
+        { value: 'tx', label: 'TX (heard me)' },
+        { value: 'rx', label: 'RX (I heard)' },
+      ],
       showMycall: true,
       map: { center: [20, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
     },
@@ -133,9 +139,15 @@
       currentMode = this.value;
       var view = VIEWS[currentPath];
       if (!view) return;
-      wsClient.clearAll();
-      wsClient.disconnect();
-      wsClient.connect({ currentMode: currentMode, local: view.local });
+      if (view.type === 'mqtt') {
+        var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
+        mqttClient.clearAll();
+        if (mycall) mqttClient.connect(mycall, currentMode);
+      } else {
+        wsClient.clearAll();
+        wsClient.disconnect();
+        wsClient.connect({ currentMode: currentMode, local: view.local });
+      }
     });
 
     document.getElementById('dxcallSelect').addEventListener('change', function () {
@@ -163,7 +175,7 @@
         return;
       }
       window.PskCookies.setCookie('pskr_mycall', mycall, 365);
-      mqttClient.connect(mycall);
+      mqttClient.connect(mycall, currentMode);
     }
 
     saveBtn.addEventListener('click', function () { applyMycall(mycallInput.value); });
@@ -194,7 +206,7 @@
     if (!view) return;
     if (view.type === 'mqtt') {
       var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
-      if (mycall) mqttClient.connect(mycall);
+      if (mycall) mqttClient.connect(mycall, currentMode);
     } else if (view.defaultMode === 'dxpedition') {
       if (currentDxcall) {
         wsClient.connect({ currentMode: 'dxpedition', local: false, dxcall: currentDxcall });
@@ -277,7 +289,7 @@
       var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
       mycallInput.value = mycall;
       if (mycall) {
-        mqttClient.connect(mycall);
+        mqttClient.connect(mycall, currentMode);
       } else {
         document.getElementById('statusText').textContent = 'status: enter your callsign';
         mycallInput.focus();
