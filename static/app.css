@@ -60,6 +60,24 @@ html, body {
   flex: 1;
 }
 
+#statusDot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #555;
+  flex-shrink: 0;
+}
+#statusDot.green  { background: #2ecc40; }
+#statusDot.yellow { background: #ffdc00; animation: dot-pulse 1s ease-in-out infinite; }
+#statusDot.red    { background: #ff4136; }
+#statusDot.cyan   { background: #0ff; }
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
 .grid-label {
   font-size: 10px;
   color: #444;

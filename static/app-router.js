@@ -77,7 +77,32 @@
       showTerminator: true,
     });
 
-    var statusEl = document.getElementById('statusText');
+    var statusDotEl = document.getElementById('statusDot');
+
+    function updateDot(text) {
+      var t = (text || '').toLowerCase();
+      var cls = '';
+      if (t.includes('connected') || t.includes('receiving')) cls = 'green';
+      else if (t.includes('connecting') || t.includes('loading')) cls = 'yellow';
+      else if (t.includes('error') || t.includes('failed') || t.includes('closed')) cls = 'red';
+      else if (t.includes('enter') || t.includes('select')) cls = 'cyan';
+      statusDotEl.className = cls;
+    }
+
+    // Proxy intercepts .textContent writes from ws-client and mqtt-client
+    // so neither needs to know about the dot element.
+    var statusEl = new Proxy(document.getElementById('statusText'), {
+      set: function (target, prop, value) {
+        if (prop === 'textContent') {
+          var text = String(value).replace(/^status:\s*/, '');
+          target.textContent = text;
+          updateDot(text);
+        } else {
+          target[prop] = value;
+        }
+        return true;
+      },
+    });
 
     wsClient = window.PskWsClient.createWsClient({
       map: map,
@@ -266,7 +291,6 @@
 
   function loadDxpeditions() {
     var sel = document.getElementById('dxcallSelect');
-    var statusEl = document.getElementById('statusText');
     while (sel.options.length > 1) sel.remove(1);
     currentDxcall = '';
     statusEl.textContent = 'status: loading DX-peditions...';
