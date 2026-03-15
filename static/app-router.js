@@ -59,7 +59,7 @@
     },
   };
 
-  var map, wsClient, mqttClient;
+  var map, wsClient, mqttClient, statusEl;
   var currentPath = null;
   var currentMode = 'from_jp';
   var currentDxcall = '';
@@ -91,7 +91,7 @@
 
     // Proxy intercepts .textContent writes from ws-client and mqtt-client
     // so neither needs to know about the dot element.
-    var statusEl = new Proxy(document.getElementById('statusText'), {
+    statusEl = new Proxy(document.getElementById('statusText'), {
       set: function (target, prop, value) {
         if (prop === 'textContent') {
           var text = String(value).replace(/^status:\s*/, '');

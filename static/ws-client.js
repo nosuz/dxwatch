@@ -50,13 +50,17 @@
 
       ws = new WebSocket(buildWsUrl(state));
 
+      var thisWs = ws;  // capture to detect stale close events
+
       ws.onopen = function () {
         if (statusEl) statusEl.textContent = 'status: websocket connected';
       };
       ws.onclose = function () {
+        if (ws !== thisWs) return;  // intentional disconnect — don't clobber status
         if (statusEl) statusEl.textContent = 'status: websocket closed';
       };
       ws.onerror = function () {
+        if (ws !== thisWs) return;
         if (statusEl) statusEl.textContent = 'status: websocket error';
       };
 
