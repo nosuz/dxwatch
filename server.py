@@ -503,27 +503,27 @@ def page_response(name: str) -> FileResponse:
 
 @app.get("/dx")
 def index_dx():
-    return page_response("dx.html")
+    return page_response("app.html")
 
 
 @app.get("/jq3ikn")
 def index_jq3ikn():
-    return page_response("jq3ikn.html")
+    return page_response("app.html")
 
 
 @app.get("/local")
 def index_local():
-    return page_response("local.html")
+    return page_response("app.html")
 
 
 @app.get("/my_dx")
 def index_my_dx():
-    return page_response("my_dx.html")
+    return page_response("app.html")
 
 
 @app.get("/dxpedition")
 def index_dxpedition():
-    return page_response("dxpedition.html")
+    return page_response("app.html")
 
 
 @app.get("/")
