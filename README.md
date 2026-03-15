@@ -47,7 +47,7 @@ docker compose build
 
 ```bash
 docker save dxwatch:latest -o dxwatch.tar
-tar zcvf ~/dxwatch_image.tgz dxwatch.tar compose.yaml README.md
+tar zcvf dxwatch_image.tgz dxwatch.tar compose.yaml README.md
 ```
 
 ### transfer image
