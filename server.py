@@ -69,7 +69,6 @@ PORT = 1883
 
 TOPIC_FROM_JP = "pskr/filter/v2/+/FT8/+/+/+/+/339/+"
 TOPIC_TO_JP = "pskr/filter/v2/+/FT8/+/+/+/+/+/339"
-TOPIC_JQ3IKN = "pskr/filter/v2/+/+/JQ3IKN/#"
 
 # ==========================
 # SQLite（直近15分保持）
@@ -86,7 +85,6 @@ mqtt_client: mqtt.Client | None = None
 HB_INTERVAL = 10
 last_mqtt_ts_from_jp = 0.0
 last_mqtt_ts_to_jp = 0.0
-last_mqtt_ts_jq3ikn = 0.0
 last_mqtt_ts_dxpedition = 0.0
 
 dxpedition_subscribed_callsigns: set[str] = set()
@@ -230,8 +228,6 @@ def mode_from_topic(topic: str) -> str | None:
     # Check dxpedition first (callsign at position 5)
     if len(parts) > 5 and parts[5] in dxpedition_subscribed_callsigns:
         return "dxpedition"
-    if "JQ3IKN" in parts:
-        return "jq3ikn"
     if len(parts) >= 2 and parts[-2] == "339":
         return "from_jp"
     if len(parts) >= 1 and parts[-1] == "339":
@@ -337,7 +333,6 @@ async def heartbeat_task():
                 "ts": time.time(),
                 "last_mqtt_ts_from_jp": last_mqtt_ts_from_jp,
                 "last_mqtt_ts_to_jp": last_mqtt_ts_to_jp,
-                "last_mqtt_ts_jq3ikn": last_mqtt_ts_jq3ikn,
                 "last_mqtt_ts_dxpedition": last_mqtt_ts_dxpedition,
             }
         )
@@ -349,17 +344,15 @@ def on_connect(client, userdata, flags, reason_code, properties):
     print("Connected: %s", reason_code)
     client.subscribe(TOPIC_FROM_JP)
     client.subscribe(TOPIC_TO_JP)
-    client.subscribe(TOPIC_JQ3IKN)
     for cs in dxpedition_subscribed_callsigns:
         client.subscribe(f"pskr/filter/v2/+/+/{cs}/#")
         print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
     print("Subscribed: %s", TOPIC_FROM_JP)
     print("Subscribed: %s", TOPIC_TO_JP)
-    print("Subscribed: %s", TOPIC_JQ3IKN)
 
 
 def on_message(client, userdata, msg):
-    global last_mqtt_ts_from_jp, last_mqtt_ts_to_jp, last_mqtt_ts_jq3ikn, last_mqtt_ts_dxpedition
+    global last_mqtt_ts_from_jp, last_mqtt_ts_to_jp, last_mqtt_ts_dxpedition
     try:
         mode = mode_from_topic(msg.topic)
         if mode is None:
@@ -397,12 +390,6 @@ def on_message(client, userdata, msg):
             marker_lat, marker_lon = sl_lat, sl_lon
             peer_lat, peer_lon = rl_lat, rl_lon
             last_mqtt_ts_to_jp = time.time()
-        elif mode == "jq3ikn":
-            if rl_lat is None or rl_lon is None:
-                return
-            marker_lat, marker_lon = rl_lat, rl_lon
-            peer_lat, peer_lon = sl_lat, sl_lon
-            last_mqtt_ts_jq3ikn = time.time()
         elif mode == "dxpedition":
             if rl_lat is None or rl_lon is None:
                 return
@@ -447,7 +434,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
     mode = websocket.query_params.get("mode", "from_jp")
-    if mode not in ("from_jp", "to_jp", "jq3ikn", "dxpedition"):
+    if mode not in ("from_jp", "to_jp", "dxpedition"):
         mode = "from_jp"
 
     local = websocket.query_params.get("local") == "1"
@@ -505,10 +492,6 @@ def page_response(name: str) -> FileResponse:
 def index_dx():
     return page_response("app.html")
 
-
-@app.get("/jq3ikn")
-def index_jq3ikn():
-    return page_response("app.html")
 
 
 @app.get("/local")

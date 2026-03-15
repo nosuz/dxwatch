@@ -54,15 +54,7 @@
       showDxcallSelect: true,
       map: { center: [0, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
     },
-    '/jq3ikn': {
-      title: 'DX Watch: JQ3IKN',
-      type: 'ws',
-      defaultMode: 'jq3ikn',
-      local: false,
-      markerTtl: 900000,
-      label: 'JQ3IKN',
-      map: { center: [0, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
-    },
+
   };
 
   var map, wsClient, mqttClient, statusEl;
