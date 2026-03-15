@@ -1,4 +1,4 @@
-# Refactored PSKReporter server
+# Refactored DXWatch server
 
 ## Structure
 
@@ -46,20 +46,20 @@ docker compose build
 ### extract image
 
 ```bash
-docker save pskreporter:latest -o app.tar
-tar zcvf ~/pskreporter_image.tgz app.tar compose.yaml README.md
+docker save dxwatch:latest -o dxwatch.tar
+tar zcvf ~/dxwatch_image.tgz dxwatch.tar compose.yaml README.md
 ```
 
 ### transfer image
 
 ```bash
-scp pskreporter.tar user@server:/tmp/
+scp dxwatch.tar user@server:/tmp/
 ```
 
 ### install image
 
 ```bash
-docker load -i pskreporter.tar
+docker load -i dxwatch.tar
 ```
 
 ## start image
