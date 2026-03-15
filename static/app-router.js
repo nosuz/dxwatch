@@ -162,11 +162,13 @@
     });
 
     var mycallInput = document.getElementById('mycallInput');
-    var saveBtn = document.getElementById('saveBtn');
+    var saveBtn     = document.getElementById('saveBtn');
+    var cancelBtn   = document.getElementById('cancelBtn');
+    var configBtn   = document.getElementById('configBtn');
+    var mycallDialog = document.getElementById('mycallDialog');
 
     function applyMycall(val) {
       var mycall = (val || '').trim().toUpperCase();
-      mycallInput.value = mycall;
       if (!mycall) {
         window.PskCookies.setCookie('pskr_mycall', '', 0);
         mqttClient.disconnect();
@@ -178,9 +180,24 @@
       mqttClient.connect(mycall, currentMode);
     }
 
-    saveBtn.addEventListener('click', function () { applyMycall(mycallInput.value); });
+    configBtn.addEventListener('click', function () {
+      mycallInput.value = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
+      mycallDialog.showModal();
+      mycallInput.focus();
+      mycallInput.select();
+    });
+
+    saveBtn.addEventListener('click', function () {
+      applyMycall(mycallInput.value);
+      mycallDialog.close();
+    });
+
+    cancelBtn.addEventListener('click',  function () { mycallDialog.close(); });
+    document.getElementById('cancelBtn2').addEventListener('click', function () { mycallDialog.close(); });
+
     mycallInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') applyMycall(mycallInput.value);
+      if (e.key === 'Enter')  { applyMycall(mycallInput.value); mycallDialog.close(); }
+      if (e.key === 'Escape') { mycallDialog.close(); }
     });
 
     document.addEventListener('visibilitychange', function () {
@@ -238,12 +255,10 @@
     });
 
     // Update UI visibility
-    var viewLabelEl   = document.getElementById('viewLabel');
-    var modeSelectEl  = document.getElementById('modeSelect');
-    var dxcallSelEl   = document.getElementById('dxcallSelect');
-    var mycallLabelEl = document.getElementById('mycallLabel');
-    var mycallInput   = document.getElementById('mycallInput');
-    var saveBtn       = document.getElementById('saveBtn');
+    var viewLabelEl  = document.getElementById('viewLabel');
+    var modeSelectEl = document.getElementById('modeSelect');
+    var dxcallSelEl  = document.getElementById('dxcallSelect');
+    var configBtn    = document.getElementById('configBtn');
 
     function show(el) { el.style.display = ''; }
     function hide(el) { el.style.display = 'none'; }
@@ -272,9 +287,8 @@
     // DX-pedition select
     if (view.showDxcallSelect) { show(dxcallSelEl); } else { hide(dxcallSelEl); }
 
-    // Mycall UI
-    if (view.showMycall) { show(mycallLabelEl); show(mycallInput); show(saveBtn); }
-    else { hide(mycallLabelEl); hide(mycallInput); hide(saveBtn); }
+    // Config button (mycall)
+    if (view.showMycall) { show(configBtn); } else { hide(configBtn); }
 
     // Apply map settings for this view
     map.setMinZoom(view.map.minZoom);
@@ -287,12 +301,10 @@
     // Connect
     if (view.type === 'mqtt') {
       var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
-      mycallInput.value = mycall;
       if (mycall) {
         mqttClient.connect(mycall, currentMode);
       } else {
         document.getElementById('statusText').textContent = 'status: enter your callsign';
-        mycallInput.focus();
       }
     } else if (view.showDxcallSelect) {
       loadDxpeditions();

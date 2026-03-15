@@ -34,15 +34,122 @@ html, body {
   gap: 8px;
 }
 
-#modeSelect,
-#mycallInput,
-#saveBtn {
+#modeSelect {
   font-size: 12px;
 }
 
-#mycallInput {
-  width: 120px;
+#configBtn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s;
 }
+#configBtn:hover { color: #fff; }
+
+/* ── Callsign dialog ── */
+#mycallDialog {
+  border: none;
+  border-radius: 12px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 0;
+  font-family: sans-serif;
+  font-size: 14px;
+  width: 300px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  animation: dialog-in 0.15s ease-out;
+}
+#mycallDialog::backdrop {
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(2px);
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 0;
+}
+.dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #cdd6f4;
+}
+.dialog-close {
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.dialog-close:hover { color: #cdd6f4; }
+.dialog-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6c7086;
+  padding: 14px 20px 5px;
+}
+#mycallInput {
+  display: block;
+  width: calc(100% - 40px);
+  margin: 0 20px;
+  box-sizing: border-box;
+  font-size: 16px;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+  padding: 9px 12px;
+  background: #181825;
+  border: 1.5px solid #313244;
+  color: #cdd6f4;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+#mycallInput:focus { border-color: #89b4fa; }
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px 18px;
+}
+.btn-secondary {
+  font-size: 13px;
+  padding: 7px 16px;
+  cursor: pointer;
+  border-radius: 7px;
+  border: 1.5px solid #313244;
+  background: transparent;
+  color: #a6adc8;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-secondary:hover { background: #313244; color: #cdd6f4; }
+.btn-primary {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 20px;
+  cursor: pointer;
+  border-radius: 7px;
+  border: none;
+  background: #89b4fa;
+  color: #1e1e2e;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: #b4d0fb; }
 
 .legend-item {
   display: flex;
