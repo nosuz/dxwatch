@@ -6,5 +6,7 @@
 .codex/
 __pycache__/
 CLAUDE.md
-README.md
+AGENTS.md
+Dockerfile
 compose.yaml
+data/

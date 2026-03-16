@@ -1,11 +1,13 @@
 services:
   web:
-    image: dxwatch
+    image: dxwatch:latest
+    build:
+      context: .
     logging:
       driver: syslog
     user: "${UID:-1000}:${GID:-1000}"
-    build:
-      context: .
+    environment:
+      TZ: Asia/Tokyo
     volumes:
       - ./data:/app/data
     ports:
@@ -13,23 +15,27 @@ services:
     restart: unless-stopped
 
   import:
-    image: dxwatch
+    image: dxwatch:latest
     logging:
       driver: syslog
     user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      TZ: Asia/Tokyo
     volumes:
       - ./data:/app/data
-    entrypoint: ["uv", "run", "python"]
+    entrypoint: ["/opt/venv/bin/python"]
     command: ["/app/import_dxpedition.py"]
     restart: "no"
 
   export:
-    image: dxwatch
+    image: dxwatch:latest
     logging:
       driver: syslog
     user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      TZ: Asia/Tokyo
     volumes:
       - ./data:/app/data
-    entrypoint: ["uv", "run", "python"]
+    entrypoint: ["/opt/venv/bin/python"]
     command: ["/app/export_dxpedition.py"]
     restart: "no"
