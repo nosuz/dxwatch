@@ -19,7 +19,7 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "/home/vscode/venv/bin/python"
+        "python.defaultInterpreterPath": "/opt/venv/bin/python"
       },
       "extensions": [
         "mhutchie.git-graph",
