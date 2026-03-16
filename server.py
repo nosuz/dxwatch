@@ -115,7 +115,7 @@ dxpedition_subscribed_callsigns: set[str] = set()
 MYDX_KEEP_SEC = 900  # 15 minutes
 
 # mycall proxy slots:
-#   { callsign: {"clients": {ws: txrx}, "buffer": [(ts, payload)], "release_task": Task|None} }
+#   { callsign: {"clients": {ws: txrx}, "release_task": Task|None} }
 mydx_slots: dict[str, dict] = {}
 
 
@@ -187,6 +187,19 @@ def db_init():
             "CREATE INDEX IF NOT EXISTS idx_dxpedition_dxcc ON dxpedition(dxcc)")
         _db.execute(
             "CREATE INDEX IF NOT EXISTS idx_dxpedition_dates ON dxpedition(start_dt, end_dt)")
+        _db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mydx_spots (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts      REAL    NOT NULL,
+                mycall  TEXT    NOT NULL,
+                txrx    TEXT    NOT NULL,
+                payload TEXT    NOT NULL
+            )
+            """
+        )
+        _db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mydx_spots_mycall_ts ON mydx_spots(mycall, ts)")
         _db.commit()
 
 
@@ -254,6 +267,32 @@ def db_select_recent(mode: str | None = None, dxcall: str | None = None) -> list
         except Exception:
             pass
     return filtered
+
+
+def mydx_db_insert(mycall: str, ts: float, txrx: str, payload: str):
+    assert _db is not None
+    cutoff = ts - MYDX_KEEP_SEC
+    with _db_lock:
+        _db.execute(
+            "INSERT INTO mydx_spots(ts, mycall, txrx, payload) VALUES(?,?,?,?)",
+            (ts, mycall, txrx, payload),
+        )
+        _db.execute(
+            "DELETE FROM mydx_spots WHERE mycall=? AND ts<?",
+            (mycall, cutoff),
+        )
+        _db.commit()
+
+
+def mydx_db_select_recent(mycall: str, txrx: str) -> list[str]:
+    assert _db is not None
+    cutoff = time.time() - MYDX_KEEP_SEC
+    with _db_lock:
+        cur = _db.execute(
+            "SELECT payload FROM mydx_spots WHERE mycall=? AND txrx=? AND ts>=? ORDER BY ts ASC",
+            (mycall, txrx, cutoff),
+        )
+        return [row[0] for row in cur.fetchall()]
 
 
 def mode_from_topic(topic: str) -> str | None:
@@ -431,10 +470,6 @@ async def _mydx_dispatch(mycall: str, role: str, data: dict):
         except Exception:
             pass
 
-    # Prune buffer then append new payloads
-    cutoff = ts - MYDX_KEEP_SEC
-    slot["buffer"] = [(t, p) for t, p in slot["buffer"] if t >= cutoff]
-
     payloads: dict[str, str] = {}
     if role == "sc" and rl_lat is not None:
         payloads["tx"] = json.dumps({
@@ -442,14 +477,14 @@ async def _mydx_dispatch(mycall: str, role: str, data: dict):
             "lat": rl_lat, "lon": rl_lon,
             "b": b, "sc": sc, "rc": rc, "ts": ts,
         })
-        slot["buffer"].append((ts, payloads["tx"]))
+        mydx_db_insert(mycall, ts, "tx", payloads["tx"])
     if role == "rc" and sl_lat is not None:
         payloads["rx"] = json.dumps({
             "type": "spot", "mode": "mydx", "txrx": "rx",
             "lat": sl_lat, "lon": sl_lon,
             "b": b, "sc": sc, "rc": rc, "ts": ts,
         })
-        slot["buffer"].append((ts, payloads["rx"]))
+        mydx_db_insert(mycall, ts, "rx", payloads["rx"])
 
     for ws, txrx in list(slot["clients"].items()):
         payload = payloads.get(txrx)
@@ -599,7 +634,7 @@ async def _handle_mydx_ws(websocket: WebSocket):
 
     # Acquire or reuse slot
     if mycall not in mydx_slots:
-        mydx_slots[mycall] = {"clients": {}, "buffer": [], "release_task": None}
+        mydx_slots[mycall] = {"clients": {}, "release_task": None}
         _mydx_subscribe(mycall)
         await _mydx_broadcast_slots()
     else:
@@ -618,17 +653,9 @@ async def _handle_mydx_ws(websocket: WebSocket):
         "max": max_slots,
     }))
 
-    # Replay buffer (last 15 min, matching txrx mode)
-    cutoff = time.time() - MYDX_KEEP_SEC
-    for ts, payload in list(slot["buffer"]):
-        if ts < cutoff:
-            continue
-        try:
-            obj = json.loads(payload)
-            if obj.get("txrx") == txrx:
-                await websocket.send_text(payload)
-        except Exception:
-            pass
+    # Replay last 15 min from DB
+    for payload in mydx_db_select_recent(mycall, txrx):
+        await websocket.send_text(payload)
 
     try:
         while True:
