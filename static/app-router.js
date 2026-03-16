@@ -164,6 +164,7 @@
       wsClient.clearAll();
       wsClient.disconnect();
       if (currentDxcall) {
+        window.PskCookies.setCookie('pskr_dxcall', currentDxcall, 7);
         wsClient.connect({ currentMode: 'dxpedition', local: false, dxcall: currentDxcall });
       } else {
         statusEl.textContent = 'status: select a DX-pedition';
@@ -312,7 +313,17 @@
           opt.textContent = d.entity_name ? d.callsign + ' (' + d.entity_name + ')' : d.callsign;
           sel.appendChild(opt);
         });
-        if (list.length === 1) {
+        var saved = (window.PskCookies.getCookie('pskr_dxcall') || '').trim().toUpperCase();
+        if (saved) {
+          var match = list.some(function (d) { return d.callsign === saved; });
+          if (match) {
+            sel.value = saved;
+            sel.dispatchEvent(new Event('change'));
+          } else {
+            window.PskCookies.setCookie('pskr_dxcall', '', 0);
+            statusEl.textContent = 'status: select a DX-pedition';
+          }
+        } else if (list.length === 1) {
           sel.value = list[0].callsign;
           sel.dispatchEvent(new Event('change'));
         } else {
