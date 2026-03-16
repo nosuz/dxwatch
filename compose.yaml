@@ -8,6 +8,7 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     environment:
       TZ: Asia/Tokyo
+      # MYDX_MAX_SLOTS: 0   # uncomment to override config.yaml (0 = unlimited)
     volumes:
       - ./data:/app/data
     ports:

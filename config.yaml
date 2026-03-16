@@ -1,0 +1,5 @@
+mydx:
+  # Maximum number of concurrent callsign proxy slots.
+  # Each unique callsign that connects to /my_dx occupies one slot.
+  # 0 = unlimited (for debugging only).
+  max_slots: 10

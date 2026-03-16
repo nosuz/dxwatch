@@ -34,9 +34,10 @@
     },
     '/my_dx': {
       title: 'DX Watch: MyDX',
-      type: 'mqtt',
-      defaultMode: 'tx',
-      markerTtl: 180000,
+      type: 'ws',
+      defaultMode: 'mydx',
+      defaultTxrx: 'tx',
+      markerTtl: 900000,
       showModeSelect: true,
       modeOptions: [
         { value: 'tx', label: 'TX (heard me)' },
@@ -54,13 +55,14 @@
       showDxcallSelect: true,
       map: { center: [0, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
     },
-
   };
 
-  var map, wsClient, mqttClient, statusEl;
+  var map, wsClient, statusEl;
   var currentPath = null;
   var currentMode = 'from_jp';
+  var currentTxrx = 'tx';   // tx/rx selector for /my_dx
   var currentDxcall = '';
+  var mydxSlotInfo = null;   // { used, max } — last received slots message
 
   function init() {
     window.PskUi.fillLegend();
@@ -82,13 +84,13 @@
       var cls = '';
       if (t.includes('connected') || t.includes('receiving')) cls = 'green';
       else if (t.includes('connecting') || t.includes('loading')) cls = 'yellow';
-      else if (t.includes('error') || t.includes('failed') || t.includes('closed')) cls = 'red';
+      else if (t.includes('error') || t.includes('failed') || t.includes('closed') || t.includes('not available')) cls = 'red';
       else if (t.includes('enter') || t.includes('select')) cls = 'cyan';
       statusDotEl.className = cls;
     }
 
-    // Proxy intercepts .textContent writes from ws-client and mqtt-client
-    // so neither needs to know about the dot element.
+    // Proxy intercepts .textContent writes from ws-client
+    // so it doesn't need to know about the dot element.
     statusEl = new Proxy(document.getElementById('statusText'), {
       set: function (target, prop, value) {
         if (prop === 'textContent') {
@@ -107,15 +109,22 @@
       statusEl: statusEl,
       colorMap: window.PskUi.COLOR_MAP,
       markerTtl: 180000,
+      onUnavailable: function (used, max) {
+        mydxSlotInfo = { used: used, max: max };
+        var maxStr = max > 0 ? '/' + max : '';
+        statusEl.textContent = 'status: proxy not available (' + used + maxStr + ' slots in use)';
+      },
+      onSlots: function (used, max) {
+        mydxSlotInfo = { used: used, max: max };
+        if (currentPath !== '/my_dx') return;
+        // Append slot count to status if currently showing connected
+        var statusText = document.getElementById('statusText').textContent || '';
+        var maxStr = max > 0 ? '/' + max : '/∞';
+        if (statusText.includes('connected')) {
+          statusEl.textContent = 'status: connected (' + used + maxStr + ' slots)';
+        }
+      },
     });
-
-    mqttClient = window.PskMqttClient.createMqttClient({
-      map: map,
-      statusEl: statusEl,
-      colorMap: window.PskUi.COLOR_MAP,
-      markerTtl: 180000,
-    });
-    mqttClient.startStatusTimer();
 
     // Intercept nav link clicks — no page reload
     document.querySelectorAll('.nav-link').forEach(function (a) {
@@ -128,15 +137,23 @@
     });
 
     document.getElementById('modeSelect').addEventListener('change', function () {
-      currentMode = this.value;
       var view = VIEWS[currentPath];
       if (!view) return;
-      if (view.type === 'mqtt') {
+
+      if (view.defaultMode === 'mydx') {
+        // modeSelect drives txrx for /my_dx
+        currentTxrx = this.value;
         var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
-        mqttClient.clearAll();
-        if (mycall) mqttClient.connect(mycall, currentMode);
-      } else {
         wsClient.clearAll();
+        wsClient.resetDataAge();
+        wsClient.disconnect();
+        if (mycall) {
+          wsClient.connect({ currentMode: 'mydx', mycall: mycall, txrx: currentTxrx });
+        }
+      } else {
+        currentMode = this.value;
+        wsClient.clearAll();
+        wsClient.resetDataAge();
         wsClient.disconnect();
         wsClient.connect({ currentMode: currentMode, local: view.local });
       }
@@ -153,23 +170,25 @@
       }
     });
 
-    var mycallInput = document.getElementById('mycallInput');
-    var saveBtn     = document.getElementById('saveBtn');
-    var cancelBtn   = document.getElementById('cancelBtn');
-    var configBtn   = document.getElementById('configBtn');
+    var mycallInput  = document.getElementById('mycallInput');
+    var saveBtn      = document.getElementById('saveBtn');
+    var cancelBtn    = document.getElementById('cancelBtn');
+    var configBtn    = document.getElementById('configBtn');
     var mycallDialog = document.getElementById('mycallDialog');
 
     function applyMycall(val) {
       var mycall = (val || '').trim().toUpperCase();
       if (!mycall) {
         window.PskCookies.setCookie('pskr_mycall', '', 0);
-        mqttClient.disconnect();
-        mqttClient.clearAll();
+        wsClient.clearAll();
+        wsClient.disconnect();
         statusEl.textContent = 'status: enter your callsign';
         return;
       }
       window.PskCookies.setCookie('pskr_mycall', mycall, 365);
-      mqttClient.connect(mycall, currentMode);
+      wsClient.clearAll();
+      wsClient.disconnect();
+      wsClient.connect({ currentMode: 'mydx', mycall: mycall, txrx: currentTxrx });
     }
 
     configBtn.addEventListener('click', function () {
@@ -184,7 +203,7 @@
       mycallDialog.close();
     });
 
-    cancelBtn.addEventListener('click',  function () { mycallDialog.close(); });
+    cancelBtn.addEventListener('click', function () { mycallDialog.close(); });
     document.getElementById('cancelBtn2').addEventListener('click', function () { mycallDialog.close(); });
 
     mycallInput.addEventListener('keydown', function (e) {
@@ -194,12 +213,11 @@
 
     document.addEventListener('visibilitychange', function () {
       var view = VIEWS[currentPath];
-      if (!view) return;
+      if (!view || view.type !== 'ws') return;
       if (document.hidden) {
-        if (view.type === 'ws') wsClient.disconnect();
-        else mqttClient.disconnect();
+        wsClient.pause();
       } else {
-        reconnectCurrent();
+        wsClient.resume();
       }
     });
 
@@ -210,32 +228,13 @@
     navigateTo(window.location.pathname);
   }
 
-  function reconnectCurrent() {
-    var view = VIEWS[currentPath];
-    if (!view) return;
-    if (view.type === 'mqtt') {
-      var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
-      if (mycall) mqttClient.connect(mycall, currentMode);
-    } else if (view.defaultMode === 'dxpedition') {
-      if (currentDxcall) {
-        wsClient.connect({ currentMode: 'dxpedition', local: false, dxcall: currentDxcall });
-      }
-    } else {
-      wsClient.connect({ currentMode: currentMode, local: view.local });
-    }
-  }
-
   function navigateTo(path) {
     var view = VIEWS[path];
     if (!view) { path = '/dx'; view = VIEWS['/dx']; }
 
-    // Disconnect outgoing connections
+    // Disconnect outgoing connection
     wsClient.disconnect();
     wsClient.clearAll();
-    if (currentPath === '/my_dx') {
-      mqttClient.disconnect();
-      mqttClient.clearAll();
-    }
 
     currentPath = path;
     currentMode = view.defaultMode || 'from_jp';
@@ -246,23 +245,18 @@
       a.style.color = a.getAttribute('data-path') === path ? '#0ff' : '#aaa';
     });
 
-    // Update UI visibility
     var viewLabelEl  = document.getElementById('viewLabel');
     var modeSelectEl = document.getElementById('modeSelect');
     var dxcallSelEl  = document.getElementById('dxcallSelect');
-    var configBtn    = document.getElementById('configBtn');
+    var configBtnEl  = document.getElementById('configBtn');
 
     function show(el) { el.style.display = ''; }
     function hide(el) { el.style.display = 'none'; }
 
-    // Static label (JP↔JP or JQ3IKN)
     if (view.label) { viewLabelEl.textContent = view.label; show(viewLabelEl); }
     else { hide(viewLabelEl); }
 
-    // Mode select
     if (view.showModeSelect) {
-      var opts = modeSelectEl.querySelectorAll('option');
-      // Rebuild options to match this view
       modeSelectEl.innerHTML = '';
       view.modeOptions.forEach(function (o) {
         var opt = document.createElement('option');
@@ -270,33 +264,32 @@
         opt.textContent = o.label;
         modeSelectEl.appendChild(opt);
       });
-      modeSelectEl.value = currentMode;
+      if (view.defaultMode === 'mydx') {
+        currentTxrx = view.defaultTxrx || 'tx';
+        modeSelectEl.value = currentTxrx;
+      } else {
+        modeSelectEl.value = currentMode;
+      }
       show(modeSelectEl);
     } else {
       hide(modeSelectEl);
     }
 
-    // DX-pedition select
     if (view.showDxcallSelect) { show(dxcallSelEl); } else { hide(dxcallSelEl); }
+    if (view.showMycall) { show(configBtnEl); } else { hide(configBtnEl); }
 
-    // Config button (mycall)
-    if (view.showMycall) { show(configBtn); } else { hide(configBtn); }
-
-    // Apply map settings for this view
     map.setMinZoom(view.map.minZoom);
     map.setMaxBounds(view.map.maxBounds);
     map.setView(view.map.center, view.map.zoom);
-
-    // Apply marker TTL
     wsClient.setMarkerTtl(view.markerTtl);
 
     // Connect
-    if (view.type === 'mqtt') {
+    if (view.defaultMode === 'mydx') {
       var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
       if (mycall) {
-        mqttClient.connect(mycall, currentMode);
+        wsClient.connect({ currentMode: 'mydx', mycall: mycall, txrx: currentTxrx });
       } else {
-        document.getElementById('statusText').textContent = 'status: enter your callsign';
+        statusEl.textContent = 'status: enter your callsign';
       }
     } else if (view.showDxcallSelect) {
       loadDxpeditions();

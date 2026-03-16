@@ -1,6 +1,7 @@
 # pip install fastapi paho-mqtt uvicorn[standard]
 
 import sys
+import os
 import json
 import asyncio
 import random
@@ -10,6 +11,11 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any
+
+try:
+    import yaml
+except ImportError:
+    yaml = None  # type: ignore
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, RedirectResponse
@@ -27,11 +33,28 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = str(DATA_DIR / "spots.db")
 
 
+def _load_config() -> dict:
+    cfg: dict = {}
+    cfg_path = BASE_DIR / "config.yaml"
+    if cfg_path.exists() and yaml is not None:
+        with open(cfg_path) as fh:
+            cfg = yaml.safe_load(fh) or {}
+    max_slots = int((cfg.get("mydx") or {}).get("max_slots", 10))
+    env = os.environ.get("MYDX_MAX_SLOTS")
+    if env is not None:
+        max_slots = int(env)
+    return {"mydx_max_slots": max_slots}
+
+
+CONFIG: dict = {}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global main_loop, mqtt_client
 
     main_loop = asyncio.get_running_loop()
+    CONFIG.update(_load_config())
     db_init()
     sync_dxpedition_subscriptions()  # loads active callsigns; MQTT not yet connected
 
@@ -88,6 +111,16 @@ last_mqtt_ts_to_jp = 0.0
 last_mqtt_ts_dxpedition = 0.0
 
 dxpedition_subscribed_callsigns: set[str] = set()
+
+MYDX_KEEP_SEC = 900  # 15 minutes
+
+# mycall proxy slots:
+#   { callsign: {"clients": {ws: txrx}, "buffer": [(ts, payload)], "release_task": Task|None} }
+mydx_slots: dict[str, dict] = {}
+
+
+def get_mydx_max_slots() -> int:
+    return CONFIG.get("mydx_max_slots", 10)
 
 
 def maidenhead_to_latlon(locator: str):
@@ -340,6 +373,93 @@ async def heartbeat_task():
         await asyncio.sleep(HB_INTERVAL)
 
 
+def _mydx_subscribe(mycall: str):
+    if mqtt_client is None:
+        return
+    enc = mycall.replace("/", "%2F")
+    mqtt_client.subscribe(f"pskr/filter/v2/+/+/{enc}/#")
+    mqtt_client.subscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
+    print(f"[mydx] subscribed {mycall}, slots={len(mydx_slots)}/{get_mydx_max_slots()}")
+
+
+def _mydx_unsubscribe(mycall: str):
+    if mqtt_client is None:
+        return
+    enc = mycall.replace("/", "%2F")
+    mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/{enc}/#")
+    mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
+    print(f"[mydx] unsubscribed {mycall}, slots={len(mydx_slots)}/{get_mydx_max_slots()}")
+
+
+async def _mydx_broadcast_slots():
+    """Push updated slot count to all active mydx clients."""
+    max_slots = get_mydx_max_slots()
+    msg = json.dumps({"type": "slots", "used": len(mydx_slots), "max": max_slots})
+    for slot in list(mydx_slots.values()):
+        for ws in list(slot["clients"]):
+            try:
+                await ws.send_text(msg)
+            except Exception:
+                pass
+
+
+async def _mydx_dispatch(mycall: str, role: str, data: dict):
+    """Compute lat/lon and forward a mydx spot to all matching clients."""
+    slot = mydx_slots.get(mycall)
+    if not slot or not slot["clients"]:
+        return
+
+    rl = data.get("rl")
+    sl = data.get("sl")
+    sc = data.get("sc", "")
+    rc = data.get("rc", "")
+    b = data.get("b", "")
+    ts = time.time()
+
+    rl_lat = rl_lon = None
+    sl_lat = sl_lon = None
+    if rl:
+        try:
+            rl_lat, rl_lon = maidenhead_to_latlon(rl)
+            rl_lat, rl_lon = apply_blur(rl_lat, rl_lon, rl)
+        except Exception:
+            pass
+    if sl:
+        try:
+            sl_lat, sl_lon = maidenhead_to_latlon(sl)
+            sl_lat, sl_lon = apply_blur(sl_lat, sl_lon, sl)
+        except Exception:
+            pass
+
+    # Prune buffer then append new payloads
+    cutoff = ts - MYDX_KEEP_SEC
+    slot["buffer"] = [(t, p) for t, p in slot["buffer"] if t >= cutoff]
+
+    payloads: dict[str, str] = {}
+    if role == "sc" and rl_lat is not None:
+        payloads["tx"] = json.dumps({
+            "type": "spot", "mode": "mydx", "txrx": "tx",
+            "lat": rl_lat, "lon": rl_lon,
+            "b": b, "sc": sc, "rc": rc, "ts": ts,
+        })
+        slot["buffer"].append((ts, payloads["tx"]))
+    if role == "rc" and sl_lat is not None:
+        payloads["rx"] = json.dumps({
+            "type": "spot", "mode": "mydx", "txrx": "rx",
+            "lat": sl_lat, "lon": sl_lon,
+            "b": b, "sc": sc, "rc": rc, "ts": ts,
+        })
+        slot["buffer"].append((ts, payloads["rx"]))
+
+    for ws, txrx in list(slot["clients"].items()):
+        payload = payloads.get(txrx)
+        if payload:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                pass
+
+
 def on_connect(client, userdata, flags, reason_code, properties):
     print("Connected: %s", reason_code)
     client.subscribe(TOPIC_FROM_JP)
@@ -347,6 +467,10 @@ def on_connect(client, userdata, flags, reason_code, properties):
     for cs in dxpedition_subscribed_callsigns:
         client.subscribe(f"pskr/filter/v2/+/+/{cs}/#")
         print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
+    for cs in mydx_slots:
+        enc = cs.replace("/", "%2F")
+        client.subscribe(f"pskr/filter/v2/+/+/{enc}/#")
+        client.subscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
     print("Subscribed: %s", TOPIC_FROM_JP)
     print("Subscribed: %s", TOPIC_TO_JP)
 
@@ -355,7 +479,9 @@ def on_message(client, userdata, msg):
     global last_mqtt_ts_from_jp, last_mqtt_ts_to_jp, last_mqtt_ts_dxpedition
     try:
         mode = mode_from_topic(msg.topic)
-        if mode is None:
+        has_mydx = bool(mydx_slots)
+
+        if mode is None and not has_mydx:
             return
 
         data = json.loads(msg.payload.decode())
@@ -364,69 +490,164 @@ def on_message(client, userdata, msg):
         sc = data.get("sc")
         rc = data.get("rc")
 
-        rl_lat = rl_lon = None
-        if rl:
-            rl_lat, rl_lon = maidenhead_to_latlon(rl)
-            rl_lat, rl_lon = apply_blur(rl_lat, rl_lon, rl)
+        # --- from_jp / to_jp / dxpedition processing ---
+        if mode is not None:
+            rl_lat = rl_lon = None
+            if rl:
+                rl_lat, rl_lon = maidenhead_to_latlon(rl)
+                rl_lat, rl_lon = apply_blur(rl_lat, rl_lon, rl)
 
-        sl_lat = sl_lon = None
-        if sl:
-            try:
-                sl_lat, sl_lon = maidenhead_to_latlon(sl)
-                sl_lat, sl_lon = apply_blur(sl_lat, sl_lon, sl)
-            except Exception:
-                pass
+            sl_lat = sl_lon = None
+            if sl:
+                try:
+                    sl_lat, sl_lon = maidenhead_to_latlon(sl)
+                    sl_lat, sl_lon = apply_blur(sl_lat, sl_lon, sl)
+                except Exception:
+                    pass
 
-        dxcall = None
-        if mode == "from_jp":
-            if rl_lat is None or rl_lon is None:
-                return
-            marker_lat, marker_lon = rl_lat, rl_lon
-            peer_lat, peer_lon = sl_lat, sl_lon
-            last_mqtt_ts_from_jp = time.time()
-        elif mode == "to_jp":
-            if sl_lat is None or sl_lon is None:
-                return
-            marker_lat, marker_lon = sl_lat, sl_lon
-            peer_lat, peer_lon = rl_lat, rl_lon
-            last_mqtt_ts_to_jp = time.time()
-        elif mode == "dxpedition":
-            if rl_lat is None or rl_lon is None:
-                return
-            marker_lat, marker_lon = rl_lat, rl_lon
-            peer_lat, peer_lon = sl_lat, sl_lon
+            dxcall = None
+            send_mode = True
+            if mode == "from_jp":
+                if rl_lat is None or rl_lon is None:
+                    send_mode = False
+                else:
+                    marker_lat, marker_lon = rl_lat, rl_lon
+                    peer_lat, peer_lon = sl_lat, sl_lon
+                    last_mqtt_ts_from_jp = time.time()
+            elif mode == "to_jp":
+                if sl_lat is None or sl_lon is None:
+                    send_mode = False
+                else:
+                    marker_lat, marker_lon = sl_lat, sl_lon
+                    peer_lat, peer_lon = rl_lat, rl_lon
+                    last_mqtt_ts_to_jp = time.time()
+            elif mode == "dxpedition":
+                if rl_lat is None or rl_lon is None:
+                    send_mode = False
+                else:
+                    marker_lat, marker_lon = rl_lat, rl_lon
+                    peer_lat, peer_lon = sl_lat, sl_lon
+                    parts = msg.topic.split("/")
+                    dxcall = parts[5].upper() if len(parts) > 5 else None
+                    last_mqtt_ts_dxpedition = time.time()
+            else:
+                send_mode = False
+
+            if send_mode:
+                send_data = json.dumps(
+                    {
+                        "type": "spot",
+                        "mode": mode,
+                        "lat": marker_lat,
+                        "lon": marker_lon,
+                        "peer_lat": peer_lat,
+                        "peer_lon": peer_lon,
+                        "b": data.get("b", ""),
+                        "ra": data.get("ra"),
+                        "sa": data.get("sa"),
+                        "sc": sc,
+                        "rc": rc,
+                        "dxcall": dxcall,
+                        "ts": time.time(),
+                    }
+                )
+                db_insert(send_data)
+                if main_loop is not None:
+                    main_loop.call_soon_threadsafe(
+                        asyncio.create_task, broadcast(send_data))
+
+        # --- mydx proxy routing ---
+        if has_mydx:
             parts = msg.topic.split("/")
-            dxcall = parts[5].upper() if len(parts) > 5 else None
-            last_mqtt_ts_dxpedition = time.time()
-        else:
-            return
-
-        send_data = json.dumps(
-            {
-                "type": "spot",
-                "mode": mode,
-                "lat": marker_lat,
-                "lon": marker_lon,
-                "peer_lat": peer_lat,
-                "peer_lon": peer_lon,
-                "b": data.get("b", ""),
-                "ra": data.get("ra"),
-                "sa": data.get("sa"),
-                "sc": sc,
-                "rc": rc,
-                "dxcall": dxcall,
-                "ts": time.time(),
-            }
-        )
-
-        db_insert(send_data)
-
-        if main_loop is not None:
-            main_loop.call_soon_threadsafe(
-                asyncio.create_task, broadcast(send_data))
+            if len(parts) >= 7:
+                sc_t = parts[5].upper()
+                rc_t = parts[6].upper()
+                if sc_t in mydx_slots:
+                    if main_loop is not None:
+                        main_loop.call_soon_threadsafe(
+                            asyncio.create_task, _mydx_dispatch(sc_t, "sc", data))
+                elif rc_t in mydx_slots:
+                    if main_loop is not None:
+                        main_loop.call_soon_threadsafe(
+                            asyncio.create_task, _mydx_dispatch(rc_t, "rc", data))
 
     except Exception as exc:
         print("Error: %s", exc)
+
+
+async def _handle_mydx_ws(websocket: WebSocket):
+    mycall = websocket.query_params.get("mycall", "").strip().upper()
+    txrx = websocket.query_params.get("txrx", "tx")
+    if txrx not in ("tx", "rx"):
+        txrx = "tx"
+
+    if not mycall:
+        await websocket.close(1008)
+        return
+
+    max_slots = get_mydx_max_slots()
+
+    # Check slot availability (0 = unlimited)
+    if max_slots > 0 and mycall not in mydx_slots and len(mydx_slots) >= max_slots:
+        await websocket.send_text(json.dumps({
+            "type": "unavailable",
+            "used": len(mydx_slots),
+            "max": max_slots,
+        }))
+        await websocket.close()
+        return
+
+    # Acquire or reuse slot
+    if mycall not in mydx_slots:
+        mydx_slots[mycall] = {"clients": {}, "buffer": [], "release_task": None}
+        _mydx_subscribe(mycall)
+        await _mydx_broadcast_slots()
+    else:
+        slot = mydx_slots[mycall]
+        if slot["release_task"] and not slot["release_task"].done():
+            slot["release_task"].cancel()
+            slot["release_task"] = None
+
+    slot = mydx_slots[mycall]
+    slot["clients"][websocket] = txrx
+
+    # Send current slot status to this client
+    await websocket.send_text(json.dumps({
+        "type": "slots",
+        "used": len(mydx_slots),
+        "max": max_slots,
+    }))
+
+    # Replay buffer (last 15 min, matching txrx mode)
+    cutoff = time.time() - MYDX_KEEP_SEC
+    for ts, payload in list(slot["buffer"]):
+        if ts < cutoff:
+            continue
+        try:
+            obj = json.loads(payload)
+            if obj.get("txrx") == txrx:
+                await websocket.send_text(payload)
+        except Exception:
+            pass
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        slot = mydx_slots.get(mycall)
+        if slot:
+            slot["clients"].pop(websocket, None)
+            if not slot["clients"]:
+                async def _grace_release(cs: str = mycall):
+                    await asyncio.sleep(30)
+                    s = mydx_slots.get(cs)
+                    if s and not s["clients"]:
+                        del mydx_slots[cs]
+                        _mydx_unsubscribe(cs)
+                        await _mydx_broadcast_slots()
+                slot["release_task"] = asyncio.create_task(_grace_release())
 
 
 @app.websocket("/ws")
@@ -434,6 +655,11 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
     mode = websocket.query_params.get("mode", "from_jp")
+
+    if mode == "mydx":
+        await _handle_mydx_ws(websocket)
+        return
+
     if mode not in ("from_jp", "to_jp", "dxpedition"):
         mode = "from_jp"
 

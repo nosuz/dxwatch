@@ -250,6 +250,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "openpyxl" },
     { name = "paho-mqtt" },
+    { name = "pyyaml" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -258,6 +259,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "paho-mqtt", specifier = ">=2.1.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0" },
 ]
 
