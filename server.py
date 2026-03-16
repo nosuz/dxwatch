@@ -58,11 +58,32 @@ async def lifespan(app: FastAPI):
     db_init()
     sync_dxpedition_subscriptions()  # loads active callsigns; MQTT not yet connected
 
+    # Restore MQTT subscriptions for callsigns that were active at last shutdown.
+    # Give each a 60s grace period; if no client reconnects in time, unsubscribe.
+    open_callsigns = mydx_get_open_callsigns()
+    mydx_close_all_sessions()
+    for cs in open_callsigns:
+        mydx_slots[cs] = {"clients": {}, "release_task": None}
+        # MQTT will be subscribed in on_connect via the mydx_slots keys
+
     mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
     mqtt_client.connect(BROKER, PORT)
     mqtt_client.loop_start()
+
+    # Start 60s grace tasks for restored slots (give clients time to reconnect)
+    async def _restore_grace(cs: str):
+        await asyncio.sleep(60)
+        s = mydx_slots.get(cs)
+        if s and not s["clients"]:
+            del mydx_slots[cs]
+            _mydx_unsubscribe(cs)
+            print(f"[mydx] grace expired after restart, unsubscribed {cs}")
+
+    for cs in open_callsigns:
+        task = asyncio.create_task(_restore_grace(cs))
+        mydx_slots[cs]["release_task"] = task
 
     hb_task = asyncio.create_task(heartbeat_task())
     sync_task = asyncio.create_task(daily_sync_task())
@@ -200,6 +221,18 @@ def db_init():
         )
         _db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mydx_spots_mycall_ts ON mydx_spots(mycall, ts)")
+        _db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mydx_sessions (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                mycall         TEXT    NOT NULL,
+                connected_at   REAL    NOT NULL,
+                disconnected_at REAL
+            )
+            """
+        )
+        _db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mydx_sessions_mycall ON mydx_sessions(mycall)")
         _db.commit()
 
 
@@ -293,6 +326,50 @@ def mydx_db_select_recent(mycall: str, txrx: str) -> list[str]:
             (mycall, txrx, cutoff),
         )
         return [row[0] for row in cur.fetchall()]
+
+
+def mydx_session_open(mycall: str) -> int:
+    assert _db is not None
+    now = time.time()
+    with _db_lock:
+        cur = _db.execute(
+            "INSERT INTO mydx_sessions(mycall, connected_at) VALUES(?, ?)",
+            (mycall, now),
+        )
+        _db.commit()
+        return cur.lastrowid  # type: ignore[return-value]
+
+
+def mydx_session_close(session_id: int):
+    assert _db is not None
+    with _db_lock:
+        _db.execute(
+            "UPDATE mydx_sessions SET disconnected_at=? WHERE id=?",
+            (time.time(), session_id),
+        )
+        _db.commit()
+
+
+def mydx_get_open_callsigns() -> list[str]:
+    """Return callsigns with sessions that were open (no disconnected_at) at last shutdown."""
+    assert _db is not None
+    with _db_lock:
+        cur = _db.execute(
+            "SELECT DISTINCT mycall FROM mydx_sessions WHERE disconnected_at IS NULL"
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+def mydx_close_all_sessions():
+    """Mark all open sessions as closed (called at startup to clean up stale records)."""
+    assert _db is not None
+    now = time.time()
+    with _db_lock:
+        _db.execute(
+            "UPDATE mydx_sessions SET disconnected_at=? WHERE disconnected_at IS NULL",
+            (now,),
+        )
+        _db.commit()
 
 
 def mode_from_topic(topic: str) -> str | None:
@@ -646,6 +723,8 @@ async def _handle_mydx_ws(websocket: WebSocket):
     slot = mydx_slots[mycall]
     slot["clients"][websocket] = txrx
 
+    session_id = mydx_session_open(mycall)
+
     # Send current slot status to this client
     await websocket.send_text(json.dumps({
         "type": "slots",
@@ -663,6 +742,7 @@ async def _handle_mydx_ws(websocket: WebSocket):
     except (WebSocketDisconnect, Exception):
         pass
     finally:
+        mydx_session_close(session_id)
         slot = mydx_slots.get(mycall)
         if slot:
             slot["clients"].pop(websocket, None)
