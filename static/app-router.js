@@ -63,6 +63,52 @@
   var currentTxrx = 'tx';   // tx/rx selector for /my_dx
   var currentDxcall = '';
   var mydxSlotInfo = null;   // { used, max } — last received slots message
+  var dxpeditionList = [];   // cache of active dxpeditions from /api/dxpeditions
+  var stationMarker = null;  // L.marker for the DX-pedition station grid location
+
+  function maidenheadToLatLon(grid) {
+    if (!grid || grid.length < 4) return null;
+    var g = grid.toUpperCase();
+    var A = 'A'.charCodeAt(0);
+    var lon = (g.charCodeAt(0) - A) * 20 + parseInt(g[2]) * 2 - 180;
+    var lat = (g.charCodeAt(1) - A) * 10 + parseInt(g[3]) * 1 - 90;
+    if (g.length >= 6) {
+      lon += (g.charCodeAt(4) - A) / 12;
+      lat += (g.charCodeAt(5) - A) / 24;
+      // centre of subsquare
+      lon += 1 / 24;
+      lat += 1 / 48;
+    } else {
+      // centre of square
+      lon += 1;
+      lat += 0.5;
+    }
+    return [lat, lon];
+  }
+
+  function clearStationMarker() {
+    if (stationMarker) {
+      map.removeLayer(stationMarker);
+      stationMarker = null;
+    }
+  }
+
+  var STATION_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="4"/><circle cx="12" cy="12" r="10" fill="none" stroke="#FFFFFF" stroke-width="4"/><circle cx="12" cy="12" r="6" fill="none" stroke="#FF6F00" stroke-width="2"/><circle cx="12" cy="12" r="10" fill="none" stroke="#FF6F00" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="#FF6F00"/></svg>';
+
+  function plotStationMarker(grid, callsign) {
+    clearStationMarker();
+    var ll = maidenheadToLatLon(grid);
+    if (!ll) return;
+    var icon = L.divIcon({
+      html: STATION_SVG,
+      className: '',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -14],
+    });
+    stationMarker = L.marker(ll, { icon: icon }).addTo(map);
+    stationMarker.bindPopup('<b>' + callsign + '</b><br>' + grid);
+  }
 
   function init() {
     window.PskUi.fillLegend();
@@ -163,9 +209,12 @@
       currentDxcall = this.value;
       wsClient.clearAll();
       wsClient.disconnect();
+      clearStationMarker();
       if (currentDxcall) {
         window.PskCookies.setCookie('pskr_dxcall', currentDxcall, 7);
         wsClient.connect({ currentMode: 'dxpedition', local: false, dxcall: currentDxcall });
+        var entry = dxpeditionList.find(function (d) { return d.callsign === currentDxcall; });
+        if (entry && entry.grid) plotStationMarker(entry.grid, entry.callsign);
       } else {
         statusEl.textContent = 'status: select a DX-pedition';
       }
@@ -236,6 +285,7 @@
     // Disconnect outgoing connection
     wsClient.disconnect();
     wsClient.clearAll();
+    clearStationMarker();
 
     currentPath = path;
     currentMode = view.defaultMode || 'from_jp';
@@ -307,6 +357,7 @@
     fetch('/api/dxpeditions')
       .then(function (r) { return r.json(); })
       .then(function (list) {
+        dxpeditionList = list;
         list.forEach(function (d) {
           var opt = document.createElement('option');
           opt.value = d.callsign;
