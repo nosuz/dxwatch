@@ -15,10 +15,27 @@
     var onSlotsFn = options.onSlots || null;
 
     var markers = [];
-    var worker = null;
+    var workers = [];
     var lastHb = null;
     var currentMode = null;
-    var currentDxcall = null;
+
+    function makeShapeIcon(shape, color) {
+      var svg;
+      if (shape === 1) {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
+              '<rect x="1" y="1" width="16" height="16" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+      } else if (shape === 2) {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="20">' +
+              '<polygon points="9,1 17,19 1,19" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+      } else if (shape === 3) {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
+              '<polygon points="9,1 17,9 9,17 1,9" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+      } else {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
+              '<circle cx="9" cy="9" r="7.5" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+      }
+      return L.divIcon({ html: svg, className: '', iconSize: [18, 18], iconAnchor: [9, 9] });
+    }
 
     function clearAll() {
       markers.forEach(function (item) {
@@ -50,39 +67,31 @@
       return url;
     }
 
-    function plotSpot(data) {
+    function plotSpot(data, shape) {
       if (data.mode && currentMode && data.mode !== currentMode) return;
-      if (currentMode === 'dxpedition' && currentDxcall && data.dxcall && data.dxcall !== currentDxcall) return;
 
       var bValue = parseInt((data.b || '').replace('m', ''), 10);
       var color = colorMap[bValue] || 'gray';
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
 
-      var marker = L.circleMarker([data.lat, data.lon], {
-        radius: 8,
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.8,
-      }).addTo(map);
+      var marker = L.marker([data.lat, data.lon], { icon: makeShapeIcon(shape, color) }).addTo(map);
 
       markers.push({ marker: marker, timestamp: timestamp });
       cleanupMarkers();
     }
 
-    function ensureWorker() {
-      if (worker) return worker;
-      console.log('[ws-client] creating worker');
-      worker = new Worker('/static/ws-worker.js');
-      worker.onerror = function (e) {
+    function createWorker(shape) {
+      var w = new Worker('/static/ws-worker.js');
+      w.onerror = function (e) {
         console.error('[ws-client] worker error:', e.message, e);
       };
-      worker.onmessage = function (e) {
+      w.onmessage = function (e) {
         var data = e.data;
         if (!data) return;
 
         if (data.type === 'unavailable') {
           console.log('[ws-client] unavailable: used=' + data.used + ' max=' + data.max);
-          if (worker) worker.postMessage({ type: 'stopReconnect' });
+          w.postMessage({ type: 'stopReconnect' });
           if (onUnavailableFn) onUnavailableFn(data.used, data.max);
           return;
         }
@@ -105,42 +114,54 @@
         }
 
         if (data.type === 'spot') {
-          plotSpot(data);
+          plotSpot(data, shape);
         }
       };
-      return worker;
+      return w;
     }
 
     function connect(state) {
       currentMode = state.currentMode;
-      currentDxcall = state.dxcall || null;
-      var url = buildWsUrl(state);
-      console.log('[ws-client] connect:', url);
-      var w = ensureWorker();
-      w.postMessage({ type: 'connect', url: url });
+
+      var dxcalls = [];
+      if (state.currentMode === 'dxpedition' && state.dxcall) {
+        dxcalls = state.dxcall.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      }
+
+      if (dxcalls.length > 0) {
+        dxcalls.forEach(function (cs, i) {
+          var url = buildWsUrl({ currentMode: 'dxpedition', dxcall: cs });
+          console.log('[ws-client] connect[' + i + ']:', url);
+          var w = createWorker(i);
+          w.postMessage({ type: 'connect', url: url });
+          workers.push(w);
+        });
+      } else {
+        var url = buildWsUrl(state);
+        console.log('[ws-client] connect:', url);
+        var w = createWorker(0);
+        w.postMessage({ type: 'connect', url: url });
+        workers.push(w);
+      }
     }
 
     function disconnect() {
-      if (worker) {
-        console.log('[ws-client] disconnect');
-        worker.postMessage({ type: 'disconnect' });
-        worker.terminate();
-        worker = null;
+      if (workers.length) {
+        console.log('[ws-client] disconnect (' + workers.length + ' workers)');
+        workers.forEach(function (w) {
+          w.postMessage({ type: 'disconnect' });
+          w.terminate();
+        });
+        workers = [];
       }
     }
 
     function pause() {
-      if (worker) {
-        console.log('[ws-client] pause');
-        worker.postMessage({ type: 'pause' });
-      }
+      workers.forEach(function (w) { w.postMessage({ type: 'pause' }); });
     }
 
     function resume() {
-      if (worker) {
-        console.log('[ws-client] resume');
-        worker.postMessage({ type: 'resume' });
-      }
+      workers.forEach(function (w) { w.postMessage({ type: 'resume' }); });
     }
 
     function startStatusTimer(getModeFn) {
