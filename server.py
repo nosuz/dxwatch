@@ -36,6 +36,9 @@ DB_PATH = str(DATA_DIR / "spots.db")
 def _load_config() -> dict:
     cfg: dict = {}
     cfg_path = BASE_DIR / "config.yaml"
+    override_path = DATA_DIR / "config.yaml"
+    if override_path.exists():
+        cfg_path = override_path
     if cfg_path.exists() and yaml is not None:
         with open(cfg_path) as fh:
             cfg = yaml.safe_load(fh) or {}
