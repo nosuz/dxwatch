@@ -12,6 +12,7 @@
 <script src="/static/map-core.js"></script>
 <script src="/static/map-ui.js"></script>
 <script src="/static/ws-client.js"></script>
+<script src="/static/activity-dialog.js"></script>
 <script src="/static/app-router.js"></script>
 </head>
 <body>
@@ -32,6 +33,18 @@
   </div>
 </div>
 <div id="map"></div>
+
+<div id="activityDialog">
+  <div id="activityDialogTitleBar">
+    <span id="activityDialogTitleText">Activity</span>
+    <div class="act-title-btns">
+      <button id="activityDialogRefresh" title="Refresh">&#x21BB;</button>
+      <button id="activityDialogClose"   title="Close">&#x2715;</button>
+    </div>
+  </div>
+  <div id="activityDialogBands"></div>
+  <div id="activityDialogHeatmap"></div>
+</div>
 
 <dialog id="mycallDialog">
   <div class="dialog-header">

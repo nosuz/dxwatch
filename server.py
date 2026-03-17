@@ -236,6 +236,19 @@ def db_init():
         )
         _db.execute(
             "CREATE INDEX IF NOT EXISTS idx_mydx_sessions_mycall ON mydx_sessions(mycall)")
+        _db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dxpedition_activity (
+                callsign   TEXT    NOT NULL,
+                hour_utc   TEXT    NOT NULL,
+                band       INTEGER NOT NULL,
+                spot_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (callsign, hour_utc, band)
+            )
+            """
+        )
+        _db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dxped_activity ON dxpedition_activity(callsign, hour_utc)")
         _db.commit()
 
 
@@ -269,6 +282,21 @@ def sync_dxpedition_subscriptions():
             mqtt_client.subscribe(f"pskr/filter/v2/+/+/{cs}/#")
             print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
     dxpedition_subscribed_callsigns = active
+
+
+def db_upsert_activity(callsign: str, band: int, hour_utc: str):
+    assert _db is not None
+    with _db_lock:
+        _db.execute(
+            """
+            INSERT INTO dxpedition_activity (callsign, hour_utc, band, spot_count)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT (callsign, hour_utc, band)
+            DO UPDATE SET spot_count = spot_count + 1
+            """,
+            (callsign, hour_utc, band),
+        )
+        _db.commit()
 
 
 def db_insert(payload: str):
@@ -671,6 +699,13 @@ def on_message(client, userdata, msg):
                     }
                 )
                 db_insert(send_data)
+                if mode == "dxpedition" and dxcall:
+                    try:
+                        band_int = int((data.get("b") or "0").replace("m", "") or "0")
+                        hour_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H")
+                        db_upsert_activity(dxcall, band_int, hour_utc)
+                    except Exception:
+                        pass
                 if main_loop is not None:
                     main_loop.call_soon_threadsafe(
                         asyncio.create_task, broadcast(send_data))
@@ -822,6 +857,28 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/api/dxpeditions")
 def api_list_dxpeditions():
     return get_active_dxpeditions()
+
+
+@app.get("/api/dxpedition_activity")
+def api_dxpedition_activity(callsign: str = ""):
+    callsigns = [cs.strip() for cs in callsign.split(",") if cs.strip()]
+    if not callsigns:
+        return []
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H")
+    assert _db is not None
+    with _db_lock:
+        placeholders = ",".join("?" * len(callsigns))
+        cur = _db.execute(
+            f"""
+            SELECT callsign, hour_utc, band, spot_count
+            FROM dxpedition_activity
+            WHERE callsign IN ({placeholders})
+              AND hour_utc >= ?
+            ORDER BY hour_utc ASC
+            """,
+            (*callsigns, cutoff),
+        )
+        return [dict(row) for row in cur.fetchall()]
 
 
 def page_response(name: str) -> FileResponse:

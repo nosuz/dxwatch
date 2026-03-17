@@ -112,6 +112,7 @@
 
   function init() {
     window.PskUi.fillLegend();
+    window.PskActivityDialog.init();
 
     map = window.PskMap.createMap({
       center: [0, 0],
@@ -215,7 +216,9 @@
         wsClient.connect({ currentMode: 'dxpedition', local: false, dxcall: currentDxcall });
         var entry = dxpeditionList.find(function (d) { return d.callsign === currentDxcall; });
         if (entry && entry.grid) plotStationMarker(entry.grid, entry.callsign);
+        window.PskActivityDialog.open(currentDxcall);
       } else {
+        window.PskActivityDialog.close();
         statusEl.textContent = 'status: select a DX-pedition';
       }
     });
@@ -286,6 +289,7 @@
     wsClient.disconnect();
     wsClient.clearAll();
     clearStationMarker();
+    window.PskActivityDialog.close();
 
     currentPath = path;
     currentMode = view.defaultMode || 'from_jp';
