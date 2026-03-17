@@ -8,23 +8,6 @@ ENV LC_ALL=ja_JP.UTF-8
 ENV LC_CTYPE=ja_JP.UTF-8
 ENV TZ=Asia/Tokyo
 
-ARG USERNAME=vscode
-ARG UID=$UID
-ARG GID=$GID
-
-# Remove user if already exist and create new user.
-RUN set -eux; \
-    if getent passwd "${UID}" > /dev/null; then \
-    echo "UID ${UID} already exists. Deleting..."; \
-    userdel -f $(getent passwd "${UID}" | cut -d: -f1) || true; \
-    fi; \
-    if getent group "${GID}" > /dev/null; then \
-    echo "GID ${GID} already exists. Deleting..."; \
-    groupdel $(getent group "${GID}" | cut -d: -f1) || true; \
-    fi; \
-    groupadd --gid "${GID}" "${USERNAME}"; \
-    useradd --uid "${UID}" --gid "${GID}" -s /bin/bash -m "${USERNAME}"
-
 # install packages
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -76,19 +59,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# # install Codex
-# ARG CODEX_BUST=0
-# RUN echo "CODEX_BUST=$CODEX_BUST" \
-#     && npm i -g @openai/codex
-
-# install Caude
-# Claude code is installed under ~/.local
-USER vscode
-ARG CLAUDE_BUST=0
-RUN echo "CLAUDE_BUST=$CLAUDE_BUST" \
-    && curl -fsSL https://claude.ai/install.sh | bash
-USER root
-
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ARG UV_CACHE_DIR=/opt/.cache/uv
 RUN mkdir -p $UV_CACHE_DIR
@@ -117,3 +87,16 @@ if [ -n "$UV_PROJECT_ENVIRONMENT" ] &&
     . "$UV_PROJECT_ENVIRONMENT/bin/activate"
 fi
 EOF
+
+# # install Codex
+# ARG CODEX_BUST=0
+# RUN echo "CODEX_BUST=$CODEX_BUST" \
+#     && npm i -g @openai/codex
+
+# install Caude
+# Claude code is installed under ~/.local
+USER ubuntu
+ARG CLAUDE_BUST=0
+RUN echo "CLAUDE_BUST=$CLAUDE_BUST" \
+    && curl -fsSL https://claude.ai/install.sh | bash
+USER root
