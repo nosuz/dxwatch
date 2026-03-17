@@ -3,10 +3,26 @@
   var MAIN_BANDS = [80, 40, 30, 20, 17, 15, 12, 10];
   var OTHER_ID   = -1;
 
+  var STORAGE_KEY = 'pskr_activity_bands';
+
   var dialog, titleBar, titleText, heatmapEl, bandsEl;
   var currentCallsign = '';
   var activityData = [];
   var selectedBands = null; // null = all bands
+
+  function saveBands() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedBands));
+    } catch (e) {}
+  }
+
+  function loadBands() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw === null) return;
+      selectedBands = JSON.parse(raw); // null or array
+    } catch (e) {}
+  }
 
   // ── Color scale ──────────────────────────────────────────────────
   function cellColor(count, maxCount) {
@@ -102,6 +118,7 @@
         selectedBands = checked.length === allCount
           ? null
           : checked.map(function (c) { return parseInt(c.dataset.band, 10); });
+        saveBands();
         renderHeatmap();
       });
     });
@@ -164,7 +181,7 @@
 
   function open(callsign) {
     currentCallsign = callsign;
-    selectedBands = null;
+    loadBands();
 
     var labels = callsign.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
     titleText.textContent = labels.join(' / ') + ' — 7-day Activity (UTC)';
