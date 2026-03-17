@@ -3,10 +3,13 @@
 .git/
 .gitignore
 .claude/
-.codex/
-__pycache__/
-CLAUDE.md
 AGENTS.md
+.codex/
+CLAUDE.md
+__pycache__/
 Dockerfile
 compose.yaml
 data/
+*.tgz
+*.tar
+*.xlsx
