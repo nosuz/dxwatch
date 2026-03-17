@@ -19,23 +19,31 @@
     var lastHb = null;
     var currentMode = null;
 
-    function makeShapeIcon(shape, color) {
+    function makeShapeIcon(shape, color, dot) {
+      var dotCircle = dot ? '<circle cx="9" cy="9" r="2.5" fill="#fff"/>' : '';
+      var dotTriangle = dot ? '<circle cx="9" cy="13" r="2.5" fill="#fff"/>' : '';
       var svg;
       if (shape === 1) {
         svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
-              '<rect x="1" y="1" width="16" height="16" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+              '<rect x="1" y="1" width="16" height="16" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              dotCircle + '</svg>';
       } else if (shape === 2) {
         svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="20">' +
-              '<polygon points="9,1 17,19 1,19" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+              '<polygon points="9,1 17,19 1,19" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              dotTriangle + '</svg>';
       } else if (shape === 3) {
         svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
-              '<polygon points="9,1 17,9 9,17 1,9" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+              '<polygon points="9,1 17,9 9,17 1,9" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              dotCircle + '</svg>';
       } else {
         svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
-              '<circle cx="9" cy="9" r="7.5" fill="' + color + '" stroke="#fff" stroke-width="1.5"/></svg>';
+              '<circle cx="9" cy="9" r="7.5" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              dotCircle + '</svg>';
       }
       return L.divIcon({ html: svg, className: '', iconSize: [18, 18], iconAnchor: [9, 9] });
     }
+
+    var DOT_BANDS = { 40: true, 20: true, 17: true };
 
     function clearAll() {
       markers.forEach(function (item) {
@@ -71,10 +79,11 @@
       if (data.mode && currentMode && data.mode !== currentMode) return;
 
       var bValue = parseInt((data.b || '').replace('m', ''), 10);
-      var color = colorMap[bValue] || 'gray';
+      var color = colorMap[bValue] !== undefined ? colorMap[bValue] : colorMap[0];
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
 
-      var marker = L.marker([data.lat, data.lon], { icon: makeShapeIcon(shape, color) }).addTo(map);
+      var dot = !!DOT_BANDS[bValue];
+      var marker = L.marker([data.lat, data.lon], { icon: makeShapeIcon(shape, color, dot) }).addTo(map);
 
       markers.push({ marker: marker, timestamp: timestamp });
       cleanupMarkers();

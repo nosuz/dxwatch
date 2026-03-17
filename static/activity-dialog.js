@@ -1,5 +1,7 @@
 (function () {
-  var ALL_BANDS = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6];
+  // Bands shown individually in the dialog; everything else → Other
+  var MAIN_BANDS = [80, 40, 30, 20, 17, 15, 12, 10];
+  var OTHER_ID   = -1;
 
   var dialog, titleBar, titleText, heatmapEl, bandsEl;
   var currentCallsign = '';
@@ -30,7 +32,12 @@
     var grid = {};
     days.forEach(function (d) { grid[d] = new Array(24).fill(0); });
     data.forEach(function (row) {
-      if (bands && bands.indexOf(row.band) === -1) return;
+      if (bands !== null) {
+        var isMain  = MAIN_BANDS.indexOf(row.band) !== -1;
+        var wantIt  = isMain  && bands.indexOf(row.band) !== -1;
+        var wantOther = !isMain && bands.indexOf(OTHER_ID)  !== -1;
+        if (!wantIt && !wantOther) return;
+      }
       var day = row.hour_utc.slice(0, 10);
       var hour = parseInt(row.hour_utc.slice(11, 13), 10);
       if (grid[day] !== undefined) grid[day][hour] += row.spot_count;
@@ -73,21 +80,26 @@
   // ── Band checkboxes ───────────────────────────────────────────────
   function renderBands() {
     var colorMap = (window.PskUi && window.PskUi.COLOR_MAP) || {};
+    var bandBg = (window.PskUi && window.PskUi.bandBackground) || function (b, c) { return c; };
+    var entries = MAIN_BANDS.map(function (b) { return { id: b, label: b + 'm', color: colorMap[b] || '#888' }; });
+    entries.push({ id: OTHER_ID, label: 'Other', color: colorMap[0] || '#888' });
+
+    var allCount = entries.length;
     var html = '';
-    ALL_BANDS.forEach(function (b) {
-      var color = colorMap[b] || '#888';
-      var checked = (!selectedBands || selectedBands.indexOf(b) !== -1) ? ' checked' : '';
+    entries.forEach(function (e) {
+      var checked = (!selectedBands || selectedBands.indexOf(e.id) !== -1) ? ' checked' : '';
+      var bg = bandBg(e.id, e.color);
       html += '<label class="act-band-label">' +
-              '<input type="checkbox" class="act-band-cb" data-band="' + b + '"' + checked + '>' +
-              '<span class="act-band-dot" style="background:' + color + '"></span>' +
-              b + 'm</label>';
+              '<input type="checkbox" class="act-band-cb" data-band="' + e.id + '"' + checked + '>' +
+              '<span class="act-band-dot" style="background:' + bg + '"></span>' +
+              e.label + '</label>';
     });
     bandsEl.innerHTML = html;
 
     bandsEl.querySelectorAll('.act-band-cb').forEach(function (cb) {
       cb.addEventListener('change', function () {
         var checked = Array.prototype.slice.call(bandsEl.querySelectorAll('.act-band-cb:checked'));
-        selectedBands = checked.length === ALL_BANDS.length
+        selectedBands = checked.length === allCount
           ? null
           : checked.map(function (c) { return parseInt(c.dataset.band, 10); });
         renderHeatmap();
