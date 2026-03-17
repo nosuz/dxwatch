@@ -18,7 +18,7 @@
     if (!legendDiv) return;
     legendDiv.innerHTML = '';
 
-    Object.keys(COLOR_MAP).forEach(function (key) {
+    [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6].forEach(function (key) {
       const item = document.createElement('div');
       item.className = 'legend-item';
 
