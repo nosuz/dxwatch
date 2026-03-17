@@ -912,4 +912,13 @@ def redirect_root():
 
 
 if __name__ == "__main__":
+    import logging
+
+    class _SuppressConnectionLogs(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            msg = record.getMessage()
+            return "connection open" not in msg.lower() and "connection closed" not in msg.lower()
+
+    logging.getLogger("uvicorn.error").addFilter(_SuppressConnectionLogs())
+
     uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
