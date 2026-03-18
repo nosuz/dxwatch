@@ -3,6 +3,7 @@
 import sys
 import os
 import csv
+import signal
 import json
 import asyncio
 import random
@@ -64,6 +65,13 @@ async def lifespan(app: FastAPI):
     import_dxpeditions_from_data_dir()
     sync_dxpedition_subscriptions()  # loads active callsigns; MQTT not yet connected
 
+    def _on_sighup():
+        print("[dxpedition] SIGHUP received, reimporting...")
+        import_dxpeditions_from_data_dir()
+        sync_dxpedition_subscriptions()
+
+    main_loop.add_signal_handler(signal.SIGHUP, _on_sighup)
+
     # Restore MQTT subscriptions for callsigns that were active at last shutdown.
     # Give each a 60s grace period; if no client reconnects in time, unsubscribe.
     open_callsigns = mydx_get_open_callsigns()
@@ -98,6 +106,7 @@ async def lifespan(app: FastAPI):
 
     hb_task.cancel()
     sync_task.cancel()
+    main_loop.remove_signal_handler(signal.SIGHUP)
 
     if mqtt_client is not None:
         mqtt_client.loop_stop()

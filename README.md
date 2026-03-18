@@ -99,4 +99,8 @@ callsign    entity_name dxcc    grid	start_dt	end_dt	url	notes
 
 Place this file under data folder.
 
-Restart `server.py`. The server import the DX-pedition data and replace the database.
+Restart `server.py`. The server import the DX-pedition data and replace the database. Sending `SIGHUP` can also update the database.
+
+```bash
+docker compose kill -s HUP web
+```
