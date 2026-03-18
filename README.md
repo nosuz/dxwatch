@@ -89,25 +89,14 @@ docker compose run --rm export
 # restart server to update connections
 ```
 
-## Insert or Update DX-pedition data
+## Update DX-pedition data
 
-Make a Excel (xlsx) file that have following columns.
+Make a Excel (xlsx) or TSV (Tab Separated Value) file that have following columns.
 
-```csv
-callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes
+```tsv
+callsign    entity_name dxcc    grid	start_dt	end_dt	url	notes
 ```
 
-if the data have an `id` column, the matching rows will be replaced.
+Place this file under data folder.
 
-```bash
-docker compose run --rm import
-# restart server to update connections
-```
-
-## `dx.json` template
-
-```json
-[
-    {"callsign":"","entity_name":"","start_dt":"YYYY-MM-DD","end_dt":"YYYY-MM-DD"}
-]
-```
+Restart `server.py`. The server import the DX-pedition data and replace the database.

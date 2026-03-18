@@ -15,19 +15,6 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
-  import:
-    image: dxwatch:latest
-    logging:
-      driver: syslog
-    user: "${UID:-1000}:${GID:-1000}"
-    environment:
-      TZ: Asia/Tokyo
-    volumes:
-      - ./data:/app/data
-    entrypoint: ["/opt/venv/bin/python"]
-    command: ["/app/import_dxpedition.py"]
-    restart: "no"
-
   export:
     image: dxwatch:latest
     logging:

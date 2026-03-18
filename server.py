@@ -2,13 +2,15 @@
 
 import sys
 import os
+import csv
 import json
 import asyncio
 import random
+import shutil
 import time
 import threading
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from pathlib import Path
 from typing import Dict, Any
 
@@ -59,6 +61,7 @@ async def lifespan(app: FastAPI):
     main_loop = asyncio.get_running_loop()
     CONFIG.update(_load_config())
     db_init()
+    import_dxpeditions_from_data_dir()
     sync_dxpedition_subscriptions()  # loads active callsigns; MQTT not yet connected
 
     # Restore MQTT subscriptions for callsigns that were active at last shutdown.
@@ -250,6 +253,145 @@ def db_init():
         _db.execute(
             "CREATE INDEX IF NOT EXISTS idx_dxped_activity ON dxpedition_activity(callsign, hour_utc)")
         _db.commit()
+
+
+DXPEDITION_IMPORT_COLUMNS = {
+    "callsign", "entity_name", "dxcc", "grid",
+    "start_dt", "end_dt", "url", "notes",
+}
+
+DXPEDITION_BACKUP_DIR = DATA_DIR / "backup"
+
+
+def _normalize_callsign_field(value: str) -> str:
+    """Normalize a comma-separated callsign field: strip, uppercase, rejoin."""
+    parts = [p.strip().upper() for p in value.split(",") if p.strip()]
+    return ",".join(parts)
+
+
+def _normalize_dxpedition_value(key: str, value):
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, date):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        if key == "callsign":
+            return _normalize_callsign_field(value)
+        return value
+    return value
+
+
+def _load_dxpedition_xlsx(path: Path) -> list[dict]:
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        print(f"[dxpedition] openpyxl not installed, skipping {path}", file=sys.stderr)
+        return []
+
+    wb = load_workbook(path, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return []
+
+    header = [str(c).strip() if c is not None else "" for c in rows[0]]
+    records = []
+    for row in rows[1:]:
+        record = {}
+        all_empty = True
+        for key, value in zip(header, row):
+            if not key or key not in DXPEDITION_IMPORT_COLUMNS:
+                continue
+            norm = _normalize_dxpedition_value(key, value)
+            record[key] = norm
+            if norm is not None:
+                all_empty = False
+        if not all_empty:
+            records.append(record)
+    return records
+
+
+def _load_dxpedition_tsv(path: Path) -> list[dict]:
+    records = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        for row in reader:
+            record = {}
+            all_empty = True
+            for key, value in row.items():
+                key = (key or "").strip()
+                if not key or key not in DXPEDITION_IMPORT_COLUMNS:
+                    continue
+                norm = _normalize_dxpedition_value(key, value)
+                record[key] = norm
+                if norm is not None:
+                    all_empty = False
+            if not all_empty:
+                records.append(record)
+    return records
+
+
+def _insert_dxpedition_record(db: sqlite3.Connection, record: dict):
+    callsign = (record.get("callsign") or "").strip()
+    if not callsign:
+        return
+    db.execute(
+        """
+        INSERT INTO dxpedition(callsign, entity_name, dxcc, grid, start_dt, end_dt, url, notes)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (callsign, record.get("entity_name"), record.get("dxcc"),
+         record.get("grid"), record.get("start_dt"), record.get("end_dt"),
+         record.get("url"), record.get("notes")),
+    )
+
+
+def _move_to_backup(src: Path) -> Path:
+    DXPEDITION_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    dst = DXPEDITION_BACKUP_DIR / src.name
+    if dst.exists():
+        stem, suffix = src.stem, src.suffix
+        counter = 1
+        while True:
+            candidate = DXPEDITION_BACKUP_DIR / f"{stem}_{counter}{suffix}"
+            if not candidate.exists():
+                dst = candidate
+                break
+            counter += 1
+    shutil.move(str(src), str(dst))
+    return dst
+
+
+def import_dxpeditions_from_data_dir():
+    """Replace dxpedition table from any DX*.xlsx / DX*.tsv files in DATA_DIR."""
+    assert _db is not None
+    files = sorted(DATA_DIR.glob("DX*.xlsx")) + sorted(DATA_DIR.glob("DX*.tsv"))
+    if not files:
+        return
+
+    print(f"[dxpedition] found {len(files)} import file(s), replacing table")
+    with _db_lock:
+        _db.execute("DELETE FROM dxpedition")
+        total = 0
+        for path in files:
+            try:
+                if path.suffix.lower() == ".xlsx":
+                    records = _load_dxpedition_xlsx(path)
+                else:
+                    records = _load_dxpedition_tsv(path)
+                for record in records:
+                    _insert_dxpedition_record(_db, record)
+                _db.commit()
+                backup = _move_to_backup(path)
+                print(f"[dxpedition] imported {len(records)} record(s) from {path.name} → {backup}")
+                total += len(records)
+            except Exception as e:
+                _db.rollback()
+                print(f"[dxpedition] error importing {path}: {e}", file=sys.stderr)
+    print(f"[dxpedition] import complete: {total} total record(s)")
 
 
 def get_active_dxpeditions() -> list[dict]:
