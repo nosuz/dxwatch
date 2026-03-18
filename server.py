@@ -221,9 +221,7 @@ def db_init():
                 start_dt    TEXT,
                 end_dt      TEXT,
                 url         TEXT,
-                notes       TEXT,
-                created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-                updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+                notes       TEXT
             )
             """
         )

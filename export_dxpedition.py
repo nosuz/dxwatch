@@ -10,7 +10,6 @@ DB_PATH = Path("data") / "spots.db"
 OUTPUT_PATH = Path("data") / "DX_export.xlsx"
 
 COLUMNS = [
-    "id",
     "callsign",
     "entity_name",
     "dxcc",
@@ -19,8 +18,6 @@ COLUMNS = [
     "end_dt",
     "url",
     "notes",
-    "created_at",
-    "updated_at",
 ]
 
 
@@ -34,7 +31,7 @@ def main() -> None:
             f"""
             SELECT {", ".join(COLUMNS)}
             FROM dxpedition
-            ORDER BY id
+            ORDER BY callsign
             """
         )
         rows = cur.fetchall()
@@ -51,17 +48,14 @@ def main() -> None:
 
     # 見やすさのための簡単な列幅調整
     widths = {
-        "A": 8,   # id
-        "B": 14,  # callsign
-        "C": 28,  # entity_name
-        "D": 8,   # dxcc
-        "E": 10,  # grid
-        "F": 14,  # start_dt
-        "G": 14,  # end_dt
-        "H": 40,  # url
-        "I": 40,  # notes
-        "J": 22,  # created_at
-        "K": 22,  # updated_at
+        "A": 14,  # callsign
+        "B": 28,  # entity_name
+        "C": 8,   # dxcc
+        "D": 10,  # grid
+        "E": 14,  # start_dt
+        "F": 14,  # end_dt
+        "G": 40,  # url
+        "H": 40,  # notes
     }
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
