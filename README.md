@@ -91,10 +91,10 @@ docker compose run --rm export
 
 ## Update DX-pedition data
 
-Make a Excel (xlsx) or TSV (Tab Separated Value) file that have following columns.
+Make a Excel (xlsx) or CSV (Comma Separated Value) file that have following columns.
 
-```tsv
-callsign    entity_name dxcc    grid	start_dt	end_dt	url	notes
+```csv
+callsign,entity_name,dxcc,grid,start_dt,end_dt,url,notes
 ```
 
 Place this file under data folder.

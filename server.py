@@ -331,10 +331,10 @@ def _load_dxpedition_xlsx(path: Path) -> list[dict]:
     return records
 
 
-def _load_dxpedition_tsv(path: Path) -> list[dict]:
+def _load_dxpedition_csv(path: Path) -> list[dict]:
     records = []
     with open(path, newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh, delimiter="\t")
+        reader = csv.DictReader(fh, delimiter=",")
         for row in reader:
             record = {}
             all_empty = True
@@ -385,7 +385,7 @@ def _move_to_backup(src: Path) -> Path:
 def import_dxpeditions_from_data_dir():
     """Replace dxpedition table from any DX*.xlsx / DX*.tsv files in DATA_DIR."""
     assert _db is not None
-    files = sorted(DATA_DIR.glob("DX*.xlsx")) + sorted(DATA_DIR.glob("DX*.tsv"))
+    files = sorted(DATA_DIR.glob("DX*.xlsx")) + sorted(DATA_DIR.glob("DX*.csv"))
     if not files:
         return
 
@@ -398,7 +398,7 @@ def import_dxpeditions_from_data_dir():
                 if path.suffix.lower() == ".xlsx":
                     records = _load_dxpedition_xlsx(path)
                 else:
-                    records = _load_dxpedition_tsv(path)
+                    records = _load_dxpedition_csv(path)
                 for record in records:
                     _insert_dxpedition_record(_db, record)
                 _db.commit()
