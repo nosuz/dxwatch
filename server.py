@@ -49,7 +49,11 @@ def _load_config() -> dict:
     env = os.environ.get("MYDX_MAX_SLOTS")
     if env is not None:
         max_slots = int(env)
-    return {"mydx_max_slots": max_slots}
+    max_hours = float((cfg.get("mydx") or {}).get("max_hours", 2))
+    env = os.environ.get("MYDX_MAX_HOURS")
+    if env is not None:
+        max_hours = float(env)
+    return {"mydx_max_slots": max_slots, "mydx_max_hours": max_hours}
 
 
 CONFIG: dict = {}
@@ -101,11 +105,13 @@ async def lifespan(app: FastAPI):
 
     hb_task = asyncio.create_task(heartbeat_task())
     sync_task = asyncio.create_task(daily_sync_task())
+    time_limit_task = asyncio.create_task(mydx_time_limit_task())
 
     yield
 
     hb_task.cancel()
     sync_task.cancel()
+    time_limit_task.cancel()
     main_loop.remove_signal_handler(signal.SIGHUP)
 
     if mqtt_client is not None:
@@ -157,6 +163,10 @@ mydx_slots: dict[str, dict] = {}
 
 def get_mydx_max_slots() -> int:
     return CONFIG.get("mydx_max_slots", 10)
+
+
+def get_mydx_max_seconds() -> float:
+    return CONFIG.get("mydx_max_hours", 2) * 3600
 
 
 def maidenhead_to_latlon(locator: str):
@@ -546,6 +556,27 @@ def mydx_get_open_callsigns() -> list[str]:
         return [row[0] for row in cur.fetchall()]
 
 
+def mydx_used_seconds(mycall: str) -> float:
+    """Return total connected seconds for mycall in the last 24 hours."""
+    assert _db is not None
+    since = time.time() - 86400
+    with _db_lock:
+        cur = _db.execute(
+            """
+            SELECT connected_at, disconnected_at FROM mydx_sessions
+            WHERE mycall=? AND (disconnected_at IS NULL OR disconnected_at >= ?)
+            """,
+            (mycall, since),
+        )
+        total = 0.0
+        now = time.time()
+        for connected_at, disconnected_at in cur.fetchall():
+            start = max(connected_at, since)
+            end = disconnected_at if disconnected_at is not None else now
+            total += max(0.0, end - start)
+        return total
+
+
 def mydx_close_all_sessions():
     """Mark all open sessions as closed (called at startup to clean up stale records)."""
     assert _db is not None
@@ -658,6 +689,28 @@ async def daily_sync_task():
                                                           minute=0, second=0, microsecond=0)
         await asyncio.sleep((next_midnight - now).total_seconds())
         sync_dxpedition_subscriptions()
+
+
+async def mydx_time_limit_task():
+    while True:
+        await asyncio.sleep(600)  # check every 10 minutes
+        now = time.time()
+        expired = [
+            cs for cs, slot in list(mydx_slots.items())
+            if slot.get("expires_at") is not None and now >= slot["expires_at"]
+        ]
+        for cs in expired:
+            slot = mydx_slots.get(cs)
+            if not slot:
+                continue
+            print(f"[mydx] time limit exceeded, closing slot {cs}")
+            msg = json.dumps({"type": "time_limit_exceeded"})
+            for ws in list(slot["clients"]):
+                try:
+                    await ws.send_text(msg)
+                    await ws.close()
+                except Exception:
+                    pass
 
 
 async def heartbeat_task():
@@ -891,6 +944,7 @@ async def _handle_mydx_ws(websocket: WebSocket):
         return
 
     max_slots = get_mydx_max_slots()
+    max_seconds = get_mydx_max_seconds()
 
     # Check slot availability (0 = unlimited)
     if max_slots > 0 and mycall not in mydx_slots and len(mydx_slots) >= max_slots:
@@ -902,9 +956,21 @@ async def _handle_mydx_ws(websocket: WebSocket):
         await websocket.close()
         return
 
+    # Check time limit (0 = unlimited)
+    if max_seconds > 0 and mycall not in mydx_slots:
+        used = mydx_used_seconds(mycall)
+        remaining = max_seconds - used
+        if remaining <= 0:
+            await websocket.send_text(json.dumps({"type": "time_limit_exceeded"}))
+            await websocket.close()
+            return
+        expires_at = time.time() + remaining
+    else:
+        expires_at = None
+
     # Acquire or reuse slot
     if mycall not in mydx_slots:
-        mydx_slots[mycall] = {"clients": {}, "release_task": None}
+        mydx_slots[mycall] = {"clients": {}, "release_task": None, "expires_at": expires_at}
         _mydx_subscribe(mycall)
         await _mydx_broadcast_slots()
     else:

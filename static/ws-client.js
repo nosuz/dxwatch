@@ -13,6 +13,7 @@
     var markerTtl = options.markerTtl || 180000;
     var onUnavailableFn = options.onUnavailable || null;
     var onSlotsFn = options.onSlots || null;
+    var onTimeLimitFn = options.onTimeLimit || null;
 
     var markers = [];
     var workers = [];
@@ -102,6 +103,13 @@
           console.log('[ws-client] unavailable: used=' + data.used + ' max=' + data.max);
           w.postMessage({ type: 'stopReconnect' });
           if (onUnavailableFn) onUnavailableFn(data.used, data.max);
+          return;
+        }
+
+        if (data.type === 'time_limit_exceeded') {
+          console.log('[ws-client] time limit exceeded');
+          w.postMessage({ type: 'stopReconnect' });
+          if (onTimeLimitFn) onTimeLimitFn();
           return;
         }
 

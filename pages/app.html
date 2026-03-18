@@ -46,6 +46,17 @@
   <div id="activityDialogHeatmap"></div>
 </div>
 
+<dialog id="timeLimitDialog">
+  <div class="dialog-header">
+    <span class="dialog-title">Time Limit Reached</span>
+    <button class="dialog-close" id="timeLimitCloseBtn" aria-label="Close">&#x2715;</button>
+  </div>
+  <p style="margin:0 0 12px 0;">Your allowed connection time has been used up. Please try again later.</p>
+  <div class="dialog-buttons">
+    <button class="btn-primary" id="timeLimitOkBtn">OK</button>
+  </div>
+</dialog>
+
 <dialog id="mycallDialog">
   <div class="dialog-header">
     <span class="dialog-title">My Callsign</span>

@@ -161,6 +161,11 @@
         var maxStr = max > 0 ? '/' + max : '';
         statusEl.textContent = 'status: proxy not available (' + used + maxStr + ' slots in use)';
       },
+      onTimeLimit: function () {
+        statusEl.textContent = 'status: time limit reached';
+        wsClient.disconnect();
+        document.getElementById('timeLimitDialog').showModal();
+      },
       onSlots: function (used, max) {
         mydxSlotInfo = { used: used, max: max };
         if (currentPath !== '/my_dx') return;
@@ -258,6 +263,10 @@
 
     cancelBtn.addEventListener('click', function () { mycallDialog.close(); });
     document.getElementById('cancelBtn2').addEventListener('click', function () { mycallDialog.close(); });
+
+    var timeLimitDialog = document.getElementById('timeLimitDialog');
+    document.getElementById('timeLimitOkBtn').addEventListener('click', function () { timeLimitDialog.close(); });
+    document.getElementById('timeLimitCloseBtn').addEventListener('click', function () { timeLimitDialog.close(); });
 
     mycallInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter')  { applyMycall(mycallInput.value); mycallDialog.close(); }
