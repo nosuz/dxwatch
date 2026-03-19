@@ -12,7 +12,7 @@
     const map = L.map('map', {
       minZoom: mapOptions.minZoom,
       maxZoom: mapOptions.maxZoom,
-
+      worldCopyJump: true,
     }).setView(mapOptions.center, mapOptions.zoom);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);

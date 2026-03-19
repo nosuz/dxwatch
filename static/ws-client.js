@@ -75,6 +75,14 @@
       });
     }
 
+    function rerender() {
+      markers.forEach(function (item) { map.removeLayer(item.marker); });
+      markers = [];
+      var now = Date.now();
+      var valid = spotBuffer.filter(function (e) { return now - e.timestamp <= markerTtl; });
+      valid.slice(-maxMarkers).forEach(renderEntry);
+    }
+
     setInterval(cleanupMarkers, 10000);
 
     function buildWsUrl(state) {
@@ -95,8 +103,10 @@
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
       var dot = !!DOT_BANDS[bValue];
 
+      // Normalize lon to [-180, 180] so worldOffset drives the actual position
+      var normLon = ((data.lon + 180) % 360 + 360) % 360 - 180;
       // Store in buffer for limit-increase replay
-      var entry = { lat: data.lat, lon: data.lon, timestamp: timestamp, shape: shape, color: color, dot: dot };
+      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, dot: dot };
       spotBuffer.push(entry);
       if (spotBuffer.length > BUFFER_MAX) spotBuffer.shift();
 
@@ -219,19 +229,10 @@
     }
 
     function setMaxMarkers(n) {
-      var prev = maxMarkers;
       maxMarkers = n;
-      if (n > prev) {
-        // Re-render from buffer to fill the new slots
-        var now = Date.now();
-        var valid = spotBuffer.filter(function (e) { return now - e.timestamp <= markerTtl; });
-        var toShow = valid.slice(-n);
-        // Clear and re-render all to preserve correct order
-        markers.forEach(function (item) { map.removeLayer(item.marker); });
-        markers = [];
-        toShow.forEach(renderEntry);
+      if (markers.length < n * 3) {
+        rerender();
       } else {
-        // Trim excess
         while (markers.length > maxMarkers * 3) {
           map.removeLayer(markers.shift().marker);
           map.removeLayer(markers.shift().marker);
