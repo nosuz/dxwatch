@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var GLOBAL_BOUNDS = [[-90, -200], [90, 200]];
+  var GLOBAL_BOUNDS = null;
   var JAPAN_BOUNDS  = [[20.0, 122.0], [46.5, 154.0]];
 
   var VIEWS = {

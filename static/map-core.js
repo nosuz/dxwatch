@@ -12,9 +12,10 @@
     const map = L.map('map', {
       minZoom: mapOptions.minZoom,
       maxZoom: mapOptions.maxZoom,
+
     }).setView(mapOptions.center, mapOptions.zoom);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { noWrap: true }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     if (mapOptions.maxBounds) {
       map.setMaxBounds(mapOptions.maxBounds);

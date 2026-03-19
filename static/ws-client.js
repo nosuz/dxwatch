@@ -84,9 +84,11 @@
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
 
       var dot = !!DOT_BANDS[bValue];
-      var marker = L.marker([data.lat, data.lon], { icon: makeShapeIcon(shape, color, dot) }).addTo(map);
-
-      markers.push({ marker: marker, timestamp: timestamp });
+      var icon = makeShapeIcon(shape, color, dot);
+      [-360, 0, 360].forEach(function (offset) {
+        var marker = L.marker([data.lat, data.lon + offset], { icon: icon }).addTo(map);
+        markers.push({ marker: marker, timestamp: timestamp });
+      });
       cleanupMarkers();
     }
 

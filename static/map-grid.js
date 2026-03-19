@@ -43,13 +43,12 @@
       let lonStart = Math.floor(bounds.getWest() / lonStep) * lonStep;
       let lonEnd = Math.ceil(bounds.getEast() / lonStep) * lonStep;
 
-      lonStart = Math.max(lonStart, -180);
-      lonEnd = Math.min(lonEnd, 180 - lonStep);
-
       for (let lat = latStart; lat <= latEnd; lat += latStep) {
         for (let lon = lonStart; lon <= lonEnd; lon += lonStep) {
           const centerLat = lat + latStep / 2;
           const centerLon = lon + lonStep / 2;
+          // Normalize to [-180, 180) for Maidenhead label computation
+          const normLon = ((centerLon + 180) % 360 + 360) % 360 - 180;
 
           L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
             color: '#888',
@@ -57,7 +56,7 @@
             fillOpacity: 0,
           }).addTo(gridLayers);
 
-          const locator = latlonToMaidenhead(centerLat, centerLon).substring(0, labelDigits);
+          const locator = latlonToMaidenhead(centerLat, normLon).substring(0, labelDigits);
           L.marker([centerLat, centerLon], {
             icon: L.divIcon({
               className: 'grid-label',
