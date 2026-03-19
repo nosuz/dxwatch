@@ -469,10 +469,10 @@ def db_insert(payload: str):
         _db.commit()
 
 
-def db_select_recent(mode: str | None = None, dxcall: str | None = None) -> list[str]:
+def db_select_recent(mode: str | None = None, dxcall: str | None = None, keep_sec: int = KEEP_SEC) -> list[str]:
     assert _db is not None
     now = time.time()
-    cutoff = now - KEEP_SEC
+    cutoff = now - keep_sec
     with _db_lock:
         cur = _db.execute(
             "SELECT payload FROM spots WHERE ts >= ? ORDER BY ts ASC",
@@ -1037,6 +1037,7 @@ async def websocket_endpoint(websocket: WebSocket):
         history = db_select_recent(
             mode=mode,
             dxcall=dxcall if mode == "dxpedition" else None,
+            keep_sec=180 if mode in ("from_jp", "to_jp") else KEEP_SEC,
         )
         for payload in history:
             try:

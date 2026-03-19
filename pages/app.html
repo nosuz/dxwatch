@@ -28,6 +28,10 @@
     <select id="modeSelect"  style="display:none;"></select>
     <select id="dxcallSelect" style="display:none;"><option value="">-- Select DX-pedition --</option></select>
     <button id="configBtn"   title="Set my callsign" style="display:none;">⚙</button>
+    <span id="limitControl" style="display:none;">
+      Limit: <span id="limitValue">1000</span>
+      <input type="range" id="limitSlider" min="100" max="2000" step="100" value="1000">
+    </span>
     <span id="statusDot"></span>
     <span id="statusText">initializing...</span>
   </div>

@@ -167,6 +167,19 @@ html, body {
   flex: 1;
 }
 
+#limitControl {
+  color: #aaa;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#limitSlider {
+  width: 80px;
+  vertical-align: middle;
+  accent-color: #89b4fa;
+}
+
 #statusDot {
   display: inline-block;
   width: 9px;

@@ -12,6 +12,7 @@
       local: false,
       markerTtl: 180000,
       showModeSelect: true,
+      showLimitSlider: true,
       modeOptions: [
         { value: 'from_jp', label: 'JP→World' },
         { value: 'to_jp',   label: 'World→JP' },
@@ -26,6 +27,7 @@
       markerTtl: 180000,
       label: 'JP↔JP',
       showModeSelect: true,
+      showLimitSlider: true,
       modeOptions: [
         { value: 'from_jp', label: 'marker=RL' },
         { value: 'to_jp',   label: 'marker=SL' },
@@ -228,6 +230,20 @@
       }
     });
 
+    var limitSlider  = document.getElementById('limitSlider');
+    var limitValueEl = document.getElementById('limitValue');
+    var savedLimit   = parseInt(window.PskCookies.getCookie('pskr_limit') || '1000', 10) || 1000;
+    limitSlider.value = savedLimit;
+    limitValueEl.textContent = savedLimit;
+    wsClient.setMaxMarkers(savedLimit);
+
+    limitSlider.addEventListener('input', function () {
+      var n = parseInt(this.value, 10);
+      limitValueEl.textContent = n;
+      wsClient.setMaxMarkers(n);
+      window.PskCookies.setCookie('pskr_limit', n, 365);
+    });
+
     var mycallInput  = document.getElementById('mycallInput');
     var saveBtn      = document.getElementById('saveBtn');
     var cancelBtn    = document.getElementById('cancelBtn');
@@ -309,10 +325,11 @@
       a.style.color = a.getAttribute('data-path') === path ? '#0ff' : '#aaa';
     });
 
-    var viewLabelEl  = document.getElementById('viewLabel');
-    var modeSelectEl = document.getElementById('modeSelect');
-    var dxcallSelEl  = document.getElementById('dxcallSelect');
-    var configBtnEl  = document.getElementById('configBtn');
+    var viewLabelEl   = document.getElementById('viewLabel');
+    var modeSelectEl  = document.getElementById('modeSelect');
+    var dxcallSelEl   = document.getElementById('dxcallSelect');
+    var configBtnEl   = document.getElementById('configBtn');
+    var limitCtrlEl   = document.getElementById('limitControl');
 
     function show(el) { el.style.display = ''; }
     function hide(el) { el.style.display = 'none'; }
@@ -341,6 +358,7 @@
 
     if (view.showDxcallSelect) { show(dxcallSelEl); } else { hide(dxcallSelEl); }
     if (view.showMycall) { show(configBtnEl); } else { hide(configBtnEl); }
+    if (view.showLimitSlider) { show(limitCtrlEl); } else { hide(limitCtrlEl); }
 
     map.setMinZoom(view.map.minZoom);
     map.setMaxBounds(view.map.maxBounds);

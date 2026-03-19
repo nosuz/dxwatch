@@ -16,9 +16,12 @@
     var onTimeLimitFn = options.onTimeLimit || null;
 
     var markers = [];
+    var spotBuffer = [];  // raw spot data for all received spots (up to BUFFER_MAX)
+    var BUFFER_MAX = 2000; // matches slider maximum
     var workers = [];
     var lastHb = null;
     var currentMode = null;
+    var maxMarkers = options.maxMarkers || 1000;
 
     function makeShapeIcon(shape, color, dot) {
       var dotCircle = dot ? '<circle cx="9" cy="9" r="2.5" fill="#fff"/>' : '';
@@ -47,20 +50,28 @@
     var DOT_BANDS = { 40: true, 20: true, 17: true };
 
     function clearAll() {
-      markers.forEach(function (item) {
-        map.removeLayer(item.marker);
-      });
+      markers.forEach(function (item) { map.removeLayer(item.marker); });
       markers = [];
+      spotBuffer = [];
     }
 
     function cleanupMarkers() {
       var now = Date.now();
+      spotBuffer = spotBuffer.filter(function (e) { return now - e.timestamp <= markerTtl; });
       markers = markers.filter(function (item) {
         if (now - item.timestamp > markerTtl) {
           map.removeLayer(item.marker);
           return false;
         }
         return true;
+      });
+    }
+
+    function renderEntry(entry) {
+      var icon = makeShapeIcon(entry.shape, entry.color, entry.dot);
+      [-360, 0, 360].forEach(function (offset) {
+        var marker = L.marker([entry.lat, entry.lon + offset], { icon: icon }).addTo(map);
+        markers.push({ marker: marker, timestamp: entry.timestamp });
       });
     }
 
@@ -82,13 +93,21 @@
       var bValue = parseInt((data.b || '').replace('m', ''), 10);
       var color = colorMap[bValue] !== undefined ? colorMap[bValue] : colorMap[0];
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
-
       var dot = !!DOT_BANDS[bValue];
-      var icon = makeShapeIcon(shape, color, dot);
-      [-360, 0, 360].forEach(function (offset) {
-        var marker = L.marker([data.lat, data.lon + offset], { icon: icon }).addTo(map);
-        markers.push({ marker: marker, timestamp: timestamp });
-      });
+
+      // Store in buffer for limit-increase replay
+      var entry = { lat: data.lat, lon: data.lon, timestamp: timestamp, shape: shape, color: color, dot: dot };
+      spotBuffer.push(entry);
+      if (spotBuffer.length > BUFFER_MAX) spotBuffer.shift();
+
+      renderEntry(entry);
+
+      // Evict oldest spot (3 copies) when cap exceeded
+      while (markers.length > maxMarkers * 3) {
+        map.removeLayer(markers.shift().marker);
+        map.removeLayer(markers.shift().marker);
+        map.removeLayer(markers.shift().marker);
+      }
       cleanupMarkers();
     }
 
@@ -199,6 +218,28 @@
       lastHb = null;
     }
 
+    function setMaxMarkers(n) {
+      var prev = maxMarkers;
+      maxMarkers = n;
+      if (n > prev) {
+        // Re-render from buffer to fill the new slots
+        var now = Date.now();
+        var valid = spotBuffer.filter(function (e) { return now - e.timestamp <= markerTtl; });
+        var toShow = valid.slice(-n);
+        // Clear and re-render all to preserve correct order
+        markers.forEach(function (item) { map.removeLayer(item.marker); });
+        markers = [];
+        toShow.forEach(renderEntry);
+      } else {
+        // Trim excess
+        while (markers.length > maxMarkers * 3) {
+          map.removeLayer(markers.shift().marker);
+          map.removeLayer(markers.shift().marker);
+          map.removeLayer(markers.shift().marker);
+        }
+      }
+    }
+
     return {
       clearAll: clearAll,
       connect: connect,
@@ -208,6 +249,7 @@
       startStatusTimer: startStatusTimer,
       resetDataAge: resetDataAge,
       setMarkerTtl: function (ttl) { markerTtl = ttl; },
+      setMaxMarkers: setMaxMarkers,
     };
   }
 
