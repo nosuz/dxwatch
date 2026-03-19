@@ -17,7 +17,7 @@
         { value: 'from_jp', label: 'JP→World' },
         { value: 'to_jp',   label: 'World→JP' },
       ],
-      map: { center: [0, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
+      map: { center: [0, 138], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
     },
     '/local': {
       title: 'DX Watch: Local',
@@ -46,7 +46,7 @@
         { value: 'rx', label: 'RX (I heard)' },
       ],
       showMycall: true,
-      map: { center: [20, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
+      map: { center: [0, 138], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
     },
     '/dxpedition': {
       title: 'DX Watch: DX-pedition',
@@ -55,7 +55,7 @@
       local: false,
       markerTtl: 900000,
       showDxcallSelect: true,
-      map: { center: [0, 0], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
+      map: { center: [0, 138], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
     },
   };
 
@@ -117,7 +117,7 @@
     window.PskActivityDialog.init();
 
     map = window.PskMap.createMap({
-      center: [0, 0],
+      center: [0, 138],
       zoom: 3,
       minZoom: 3,
       maxZoom: 11,
@@ -222,7 +222,11 @@
         window.PskCookies.setCookie('pskr_dxcall', currentDxcall, 7);
         wsClient.connect({ currentMode: 'dxpedition', local: false, dxcall: currentDxcall });
         var entry = dxpeditionList.find(function (d) { return d.callsign === currentDxcall; });
-        if (entry && entry.grid) plotStationMarker(entry.grid, entry.callsign);
+        if (entry && entry.grid) {
+          plotStationMarker(entry.grid, entry.callsign);
+          var ll = maidenheadToLatLon(entry.grid);
+          if (ll) map.setView([0, ll[1]], map.getZoom());
+        }
         window.PskActivityDialog.open(currentDxcall);
       } else {
         window.PskActivityDialog.close();
@@ -287,6 +291,13 @@
     mycallInput.addEventListener('keydown', function (e) {
       if (e.key === 'Enter')  { applyMycall(mycallInput.value); mycallDialog.close(); }
       if (e.key === 'Escape') { mycallDialog.close(); }
+    });
+
+    map.on('moveend', function () {
+      if (!currentPath || currentPath === '/local' || currentPath === '/dxpedition') return;
+      var c = map.getCenter();
+      var normLng = ((c.lng + 180) % 360 + 360) % 360 - 180;
+      window.PskCookies.setCookie('pskr_center_' + currentPath.slice(1), c.lat.toFixed(4) + ',' + normLng.toFixed(4), 365);
     });
 
     document.addEventListener('visibilitychange', function () {
@@ -362,7 +373,17 @@
 
     map.setMinZoom(view.map.minZoom);
     map.setMaxBounds(view.map.maxBounds);
-    map.setView(view.map.center, view.map.zoom);
+
+    var center = view.map.center;
+    if (path !== '/local' && path !== '/dxpedition') {
+      var saved = window.PskCookies.getCookie('pskr_center_' + path.slice(1));
+      if (saved) {
+        var parts = saved.split(',');
+        var lat = parseFloat(parts[0]), lon = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lon)) center = [lat, lon];
+      }
+    }
+    map.setView(center, view.map.zoom);
     wsClient.setMarkerTtl(view.markerTtl);
 
     // Connect
