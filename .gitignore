@@ -9,3 +9,6 @@ data/
 *.xlsx
 *.tar
 *.tgz
+CLAUDE.md
+AGENTS.md
+.claude/

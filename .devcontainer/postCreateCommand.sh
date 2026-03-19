@@ -8,10 +8,12 @@ set -eu
 MARKER_FILE="$HOME/.postCreateCommand-done"
 
 # マーカーファイルがなければ初期化スクリプトを実行
-if [ ! -f "$MARKER_FILE" ]; then
-  # 初期化完了を示すマーカーファイルを作成
-  touch "$MARKER_FILE"
+if [ -f "$MARKER_FILE" ]; then
+  exit 0
 fi
+
+# 初期化完了を示すマーカーファイルを作成
+touch "$MARKER_FILE"
 
 # mkdir -p /workspaces/.codex
 # ln -sfn /workspaces/.codex ~/.codex
