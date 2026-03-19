@@ -9,3 +9,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "uvicorn[standard]>=0.41.0",
 ]
+[dependency-groups]
+dev = [
+    "git-filter-repo>=2.47.0",
+]

@@ -71,7 +71,7 @@ COPY pyproject.toml uv.lock ./
 # set `--frozen` to `uv sync` on runtime
 RUN --mount=type=cache,target=$UV_CACHE_DIR,sharing=locked \
     uv venv /opt/venv \
-    && if [ -s uv.lock ]; then uv sync --frozen; fi
+    && if [ -s uv.lock ]; then uv sync --group dev; fi
 
 RUN chmod -R a+rX /opt/venv \
     && find /opt/venv -type d -perm -u+w -exec chmod a+w {} +
