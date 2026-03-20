@@ -113,7 +113,9 @@
   }
 
   function init() {
-    window.PskUi.fillLegend();
+    var initialBands = window.PskUi.fillLegend(function (selected) {
+      wsClient.setSelectedBands(selected);
+    });
     window.PskActivityDialog.init();
 
     map = window.PskMap.createMap({
@@ -179,6 +181,8 @@
         }
       },
     });
+
+    if (initialBands) wsClient.setSelectedBands(initialBands);
 
     // Intercept nav link clicks — no page reload
     document.querySelectorAll('.nav-link').forEach(function (a) {

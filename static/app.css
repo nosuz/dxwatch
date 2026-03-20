@@ -155,6 +155,12 @@ html, body {
   display: flex;
   align-items: center;
   margin-right: 15px;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+.legend-item.off {
+  opacity: 0.25;
 }
 
 .legend-color {

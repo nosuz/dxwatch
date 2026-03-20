@@ -22,9 +22,9 @@
       : color;
   }
 
-  function fillLegend() {
+  function fillLegend(onChange) {
     const legendDiv = document.getElementById('legend');
-    if (!legendDiv) return;
+    if (!legendDiv) return null;
     legendDiv.innerHTML = '';
 
     var legendBands = [
@@ -32,13 +32,21 @@
       [17, '17m'], [15, '15m'], [12, '12m'], [10, '10m'], [6, '6m'],
       [2, '2m'], [0, 'Other'],
     ];
+
+    var allBands = legendBands.map(function (e) { return e[0]; });
+    var saved = window.PskCookies.getCookie('pskr_bands');
+    var selected = saved
+      ? new Set(saved.split(',').map(Number))
+      : new Set(allBands);
+
     legendBands.forEach(function (entry) {
+      var band = entry[0];
       const item = document.createElement('div');
       item.className = 'legend-item';
 
       const colorBox = document.createElement('div');
       colorBox.className = 'legend-color';
-      colorBox.style.background = bandBackground(entry[0], COLOR_MAP[entry[0]]);
+      colorBox.style.background = bandBackground(band, COLOR_MAP[band]);
 
       const label = document.createElement('span');
       label.textContent = entry[1];
@@ -46,7 +54,23 @@
       item.appendChild(colorBox);
       item.appendChild(label);
       legendDiv.appendChild(item);
+
+      if (!selected.has(band)) item.classList.add('off');
+
+      item.addEventListener('click', function () {
+        if (selected.has(band)) {
+          selected.delete(band);
+          item.classList.add('off');
+        } else {
+          selected.add(band);
+          item.classList.remove('off');
+        }
+        window.PskCookies.setCookie('pskr_bands', Array.from(selected).join(','), 365);
+        if (onChange) onChange(new Set(selected));
+      });
     });
+
+    return new Set(selected);
   }
 
   window.PskUi = {

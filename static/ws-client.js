@@ -16,8 +16,8 @@
     var onTimeLimitFn = options.onTimeLimit || null;
 
     var markers = [];
-    var spotBuffer = [];  // raw spot data for all received spots (up to BUFFER_MAX)
-    var BUFFER_MAX = 2000; // matches slider maximum
+    var spotBuffer = [];  // all spots within markerTtl, uncapped
+    var selectedBands = null; // null = all bands visible
     var workers = [];
     var lastHb = null;
     var currentMode = null;
@@ -79,8 +79,16 @@
       markers.forEach(function (item) { map.removeLayer(item.marker); });
       markers = [];
       var now = Date.now();
-      var valid = spotBuffer.filter(function (e) { return now - e.timestamp <= markerTtl; });
+      var valid = spotBuffer.filter(function (e) {
+        return now - e.timestamp <= markerTtl &&
+               (!selectedBands || selectedBands.has(e.band));
+      });
       valid.slice(-maxMarkers).forEach(renderEntry);
+    }
+
+    function setSelectedBands(set) {
+      selectedBands = set;
+      rerender();
     }
 
     setInterval(cleanupMarkers, 10000);
@@ -103,20 +111,20 @@
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
       var dot = !!DOT_BANDS[bValue];
 
-      // Normalize lon to [-180, 180] so worldOffset drives the actual position
+      // Normalize lon to [-180, 180]
       var normLon = ((data.lon + 180) % 360 + 360) % 360 - 180;
-      // Store in buffer for limit-increase replay
-      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, dot: dot };
+      var bKey = colorMap[bValue] !== undefined ? bValue : 0;
+      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, dot: dot, band: bKey };
       spotBuffer.push(entry);
-      if (spotBuffer.length > BUFFER_MAX) spotBuffer.shift();
 
-      renderEntry(entry);
-
-      // Evict oldest spot (3 copies) when cap exceeded
-      while (markers.length > maxMarkers * 3) {
-        map.removeLayer(markers.shift().marker);
-        map.removeLayer(markers.shift().marker);
-        map.removeLayer(markers.shift().marker);
+      if (!selectedBands || selectedBands.has(bKey)) {
+        renderEntry(entry);
+        // Evict oldest spot (3 copies) when cap exceeded
+        while (markers.length > maxMarkers * 3) {
+          map.removeLayer(markers.shift().marker);
+          map.removeLayer(markers.shift().marker);
+          map.removeLayer(markers.shift().marker);
+        }
       }
       cleanupMarkers();
     }
@@ -251,6 +259,7 @@
       resetDataAge: resetDataAge,
       setMarkerTtl: function (ttl) { markerTtl = ttl; },
       setMaxMarkers: setMaxMarkers,
+      setSelectedBands: setSelectedBands,
     };
   }
 
