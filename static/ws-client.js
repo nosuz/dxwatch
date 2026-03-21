@@ -23,31 +23,60 @@
     var currentMode = null;
     var maxMarkers = options.maxMarkers || 1000;
 
-    function makeShapeIcon(shape, color, dot) {
-      var dotCircle = dot ? '<circle cx="9" cy="9" r="2.5" fill="#fff"/>' : '';
-      var dotTriangle = dot ? '<circle cx="9" cy="13" r="2.5" fill="#fff"/>' : '';
-      var svg;
-      if (shape === 1) {
-        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
-              '<rect x="1" y="1" width="16" height="16" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
-              dotCircle + '</svg>';
-      } else if (shape === 2) {
-        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="20">' +
-              '<polygon points="9,1 17,19 1,19" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
-              dotTriangle + '</svg>';
-      } else if (shape === 3) {
-        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
-              '<polygon points="9,1 17,9 9,17 1,9" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
-              dotCircle + '</svg>';
-      } else {
-        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18">' +
-              '<circle cx="9" cy="9" r="7.5" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
-              dotCircle + '</svg>';
-      }
-      return L.divIcon({ html: svg, className: '', iconSize: [18, 18], iconAnchor: [9, 9] });
+    function haloLine(x1, y1, x2, y2, c) {
+      var h = c === '#fff' ? '#000' : '#fff';
+      return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + h + '" stroke-width="4" stroke-linecap="round"/>' +
+             '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/>';
     }
 
-    var DOT_BANDS = { 40: true, 30: true, 20: true };
+    // cue SVG line functions for regular shapes (center 11,11 in 22×22), half-length=6
+    var CUE_SVG = {
+      '-':  function(c) { return haloLine(7,11,15,11,c); },
+      '|':  function(c) { return haloLine(11,7,11,15,c); },
+      '/':  function(c) { return haloLine(7,15,15,7,c); },
+      '\\': function(c) { return haloLine(7,7,15,15,c); },
+      'x':  function(c) { return haloLine(7,15,15,7,c) + haloLine(7,7,15,15,c); },
+      '':   function()  { return ''; },
+    };
+    // cue SVG line functions for triangle shape (centroid 11,16 in 22×24), half-length=4
+    var CUE_SVG_TRI = {
+      '-':  function(c) { return haloLine(7,16,15,16,c); },
+      '|':  function(c) { return haloLine(11,12,11,20,c); },
+      '/':  function(c) { return haloLine(7,20,15,12,c); },
+      '\\': function(c) { return haloLine(7,12,15,20,c); },
+      'x':  function(c) { return haloLine(7,20,15,12,c) + haloLine(7,12,15,20,c); },
+      '':   function()  { return ''; },
+    };
+
+    var DOT_BANDS = { 17: true };
+
+    function makeShapeIcon(shape, color, cueKey, dot, cueColor, dotColor) {
+      var c = cueColor || '#fff';
+      var dc = dotColor || '#fff';
+      var cueFn = (shape === 2 ? CUE_SVG_TRI : CUE_SVG)[cueKey] || CUE_SVG[''];
+      var cue = cueFn(c);
+      var dotCircle   = dot ? '<circle cx="11" cy="11" r="3" fill="' + dc + '"/>' : '';
+      var dotTriangle = dot ? '<circle cx="11" cy="16" r="3" fill="' + dc + '"/>' : '';
+      var svg;
+      if (shape === 1) {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22">' +
+              '<rect x="1" y="1" width="20" height="20" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              cue + dotCircle + '</svg>';
+      } else if (shape === 2) {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="24">' +
+              '<polygon points="11,1 21,23 1,23" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              cue + dotTriangle + '</svg>';
+      } else if (shape === 3) {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22">' +
+              '<polygon points="11,1 21,11 11,21 1,11" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              cue + dotCircle + '</svg>';
+      } else {
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22">' +
+              '<circle cx="11" cy="11" r="9.5" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
+              cue + dotCircle + '</svg>';
+      }
+      return L.divIcon({ html: svg, className: '', iconSize: [22, 22], iconAnchor: [11, 11] });
+    }
 
     function clearAll() {
       markers.forEach(function (item) { map.removeLayer(item.marker); });
@@ -68,7 +97,7 @@
     }
 
     function renderEntry(entry) {
-      var icon = makeShapeIcon(entry.shape, entry.color, entry.dot);
+      var icon = makeShapeIcon(entry.shape, entry.color, entry.cue, entry.dot, entry.cueColor, entry.dotColor);
       [-360, 0, 360].forEach(function (offset) {
         var marker = L.marker([entry.lat, entry.lon + offset], { icon: icon }).addTo(map);
         markers.push({ marker: marker, timestamp: entry.timestamp });
@@ -109,12 +138,14 @@
       var bValue = parseInt((data.b || '').replace('m', ''), 10);
       var color = colorMap[bValue] !== undefined ? colorMap[bValue] : colorMap[0];
       var timestamp = (typeof data.ts === 'number') ? data.ts * 1000 : Date.now();
-      var dot = !!DOT_BANDS[bValue];
-
       // Normalize lon to [-180, 180]
       var normLon = ((data.lon + 180) % 360 + 360) % 360 - 180;
       var bKey = colorMap[bValue] !== undefined ? bValue : 0;
-      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, dot: dot, band: bKey };
+      var cueKey = window.PskUi.BAND_CUES[bKey] || '';
+      var cueColor = window.PskUi.BAND_CUE_COLORS[bKey] || '#fff';
+      var dot = !!DOT_BANDS[bKey];
+      var dotColor = (bKey === 17) ? '#000' : '#fff';
+      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, cue: cueKey, cueColor: cueColor, dot: dot, dotColor: dotColor, band: bKey };
       spotBuffer.push(entry);
 
       if (!selectedBands || selectedBands.has(bKey)) {

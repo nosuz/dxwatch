@@ -14,12 +14,42 @@
     0:   '#888888',  // other / unknown
   };
 
-  const DOT_BANDS = new Set([40, 30, 20]);
+  const BAND_CUES = {
+    160: '-', 80: '|', 40: '/', 30: '\\', 20: 'x', 17: '',
+    15: 'x', 12: '\\', 10: '/', 6: '|', 2: '-', 0: '',
+  };
 
-  function bandBackground(band, color) {
-    return DOT_BANDS.has(band)
-      ? 'radial-gradient(circle, #fff 22%, ' + color + ' 23%)'
-      : color;
+  const BAND_CUE_COLORS = {
+    160: '#fff', 80: '#fff', 40: '#fff', 30: '#fff', 20: '#fff', 17: '#fff',
+    15: '#000', 12: '#000', 10: '#000', 6: '#000', 2: '#000', 0: '#fff',
+  };
+
+  var DOT_BANDS = new Set([17]);
+
+  function haloLine(x1, y1, x2, y2, c) {
+    var h = c === '#fff' ? '#000' : '#fff';
+    var attrs = '" stroke-linecap="round"/>';
+    return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + h + '" stroke-width="4' + attrs +
+           '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + c + '" stroke-width="2' + attrs;
+  }
+
+  function cueLine(cueKey, c) {
+    switch (cueKey) {
+      case '-':  return haloLine(6,10,14,10,c);
+      case '|':  return haloLine(10,6,10,14,c);
+      case '/':  return haloLine(6,14,14,6,c);
+      case '\\': return haloLine(6,6,14,14,c);
+      case 'x':  return haloLine(6,14,14,6,c) + haloLine(6,6,14,14,c);
+      default:   return '';
+    }
+  }
+
+  function bandLegendSvg(band, color) {
+    var cue = cueLine(BAND_CUES[band], BAND_CUE_COLORS[band] || '#fff');
+    var dot = DOT_BANDS.has(band) ? '<circle cx="10" cy="10" r="3" fill="' + (band === 17 ? '#000' : '#fff') + '"/>' : '';
+    return '<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">' +
+           '<rect x="0" y="0" width="20" height="20" rx="2" fill="' + color + '"/>' +
+           cue + dot + '</svg>';
   }
 
   function fillLegend(onChange) {
@@ -46,7 +76,7 @@
 
       const colorBox = document.createElement('div');
       colorBox.className = 'legend-color';
-      colorBox.style.background = bandBackground(band, COLOR_MAP[band]);
+      colorBox.innerHTML = bandLegendSvg(band, COLOR_MAP[band]);
 
       const label = document.createElement('span');
       label.textContent = entry[1];
@@ -75,8 +105,8 @@
 
   window.PskUi = {
     COLOR_MAP,
-    DOT_BANDS,
-    bandBackground,
+    BAND_CUES,
+    BAND_CUE_COLORS,
     fillLegend,
   };
 })();
