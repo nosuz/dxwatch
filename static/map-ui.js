@@ -14,7 +14,7 @@
     0:   '#888888',  // other / unknown
   };
 
-  const DOT_BANDS = new Set([40, 20, 17]);
+  const DOT_BANDS = new Set([40, 30, 20]);
 
   function bandBackground(band, color) {
     return DOT_BANDS.has(band)

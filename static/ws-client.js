@@ -47,7 +47,7 @@
       return L.divIcon({ html: svg, className: '', iconSize: [18, 18], iconAnchor: [9, 9] });
     }
 
-    var DOT_BANDS = { 40: true, 20: true, 17: true };
+    var DOT_BANDS = { 40: true, 30: true, 20: true };
 
     function clearAll() {
       markers.forEach(function (item) { map.removeLayer(item.marker); });
