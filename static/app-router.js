@@ -66,7 +66,7 @@
   var currentDxcall = '';
   var mydxSlotInfo = null;   // { used, max } — last received slots message
   var dxpeditionList = [];   // cache of active dxpeditions from /api/dxpeditions
-  var stationMarker = null;  // L.marker for the DX-pedition station grid location
+  var stationMarkers = [];   // L.markers for the DX-pedition station grid location (3 world copies)
 
   function maidenheadToLatLon(grid) {
     if (!grid || grid.length < 4) return null;
@@ -89,10 +89,8 @@
   }
 
   function clearStationMarker() {
-    if (stationMarker) {
-      map.removeLayer(stationMarker);
-      stationMarker = null;
-    }
+    stationMarkers.forEach(function (m) { map.removeLayer(m); });
+    stationMarkers = [];
   }
 
   var STATION_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="#FFFFFF" stroke-width="4"/><circle cx="12" cy="12" r="10" fill="none" stroke="#FFFFFF" stroke-width="4"/><circle cx="12" cy="12" r="6" fill="none" stroke="#FF6F00" stroke-width="2"/><circle cx="12" cy="12" r="10" fill="none" stroke="#FF6F00" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="#FF6F00"/></svg>';
@@ -108,8 +106,11 @@
       iconAnchor: [12, 12],
       popupAnchor: [0, -14],
     });
-    stationMarker = L.marker(ll, { icon: icon }).addTo(map);
-    stationMarker.bindPopup('<b>' + callsign + '</b><br>' + grid);
+    [-360, 0, 360].forEach(function (offset) {
+      var m = L.marker([ll[0], ll[1] + offset], { icon: icon }).addTo(map);
+      m.bindPopup('<b>' + callsign + '</b><br>' + grid);
+      stationMarkers.push(m);
+    });
   }
 
   function init() {
