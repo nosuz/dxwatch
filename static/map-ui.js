@@ -107,6 +107,7 @@
     COLOR_MAP,
     BAND_CUES,
     BAND_CUE_COLORS,
+    bandLegendSvg,
     fillLegend,
   };
 })();

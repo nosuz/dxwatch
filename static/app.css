@@ -284,14 +284,15 @@ html, body {
   cursor: pointer;
   color: #a6adc8;
   font-size: 11px;
+  user-select: none;
+  transition: opacity 0.15s;
 }
-.act-band-label input { cursor: pointer; accent-color: #89b4fa; }
+.act-band-label.off { opacity: 0.25; }
 .act-band-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
+  line-height: 0;
 }
 
 #activityDialogHeatmap {

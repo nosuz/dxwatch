@@ -95,29 +95,42 @@
 
   // ── Band checkboxes ───────────────────────────────────────────────
   function renderBands() {
-    var colorMap = (window.PskUi && window.PskUi.COLOR_MAP) || {};
-    var bandBg = (window.PskUi && window.PskUi.bandBackground) || function (b, c) { return c; };
-    var entries = MAIN_BANDS.map(function (b) { return { id: b, label: b + 'm', color: colorMap[b] || '#888' }; });
-    entries.push({ id: OTHER_ID, label: 'Other', color: colorMap[0] || '#888' });
-
+    var ui = window.PskUi || {};
+    var colorMap = ui.COLOR_MAP || {};
+    var legendSvg = ui.bandLegendSvg || function (b, c) {
+      return '<span style="display:inline-block;width:20px;height:20px;background:' + c + '"></span>';
+    };
+    var entries = MAIN_BANDS.map(function (b) { return { id: b, label: b + 'm', svgBand: b }; });
+    entries.push({ id: OTHER_ID, label: 'Other', svgBand: 0 });
     var allCount = entries.length;
-    var html = '';
-    entries.forEach(function (e) {
-      var checked = (!selectedBands || selectedBands.indexOf(e.id) !== -1) ? ' checked' : '';
-      var bg = bandBg(e.id, e.color);
-      html += '<label class="act-band-label">' +
-              '<input type="checkbox" class="act-band-cb" data-band="' + e.id + '"' + checked + '>' +
-              '<span class="act-band-dot" style="background:' + bg + '"></span>' +
-              e.label + '</label>';
-    });
-    bandsEl.innerHTML = html;
 
-    bandsEl.querySelectorAll('.act-band-cb').forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        var checked = Array.prototype.slice.call(bandsEl.querySelectorAll('.act-band-cb:checked'));
-        selectedBands = checked.length === allCount
+    bandsEl.innerHTML = '';
+    entries.forEach(function (e) {
+      var isOn = !selectedBands || selectedBands.indexOf(e.id) !== -1;
+      var item = document.createElement('div');
+      item.className = 'act-band-label' + (isOn ? '' : ' off');
+      item.dataset.band = String(e.id);
+
+      var dot = document.createElement('span');
+      dot.className = 'act-band-dot';
+      dot.innerHTML = legendSvg(e.svgBand, colorMap[e.svgBand] || '#888');
+
+      var lbl = document.createElement('span');
+      lbl.textContent = e.label;
+
+      item.appendChild(dot);
+      item.appendChild(lbl);
+      bandsEl.appendChild(item);
+
+      item.addEventListener('click', function () {
+        item.classList.toggle('off');
+        var onItems = Array.prototype.filter.call(
+          bandsEl.querySelectorAll('.act-band-label'),
+          function (el) { return !el.classList.contains('off'); }
+        );
+        selectedBands = onItems.length === allCount
           ? null
-          : checked.map(function (c) { return parseInt(c.dataset.band, 10); });
+          : onItems.map(function (el) { return parseInt(el.dataset.band, 10); });
         saveBands();
         renderHeatmap();
       });
