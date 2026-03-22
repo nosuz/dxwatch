@@ -68,6 +68,47 @@
   var dxpeditionList = [];   // cache of active dxpeditions from /api/dxpeditions
   var stationMarkers = [];   // L.markers for the DX-pedition station grid location (3 world copies)
 
+  // Background WebSocket — keeps the /my_dx MQTT slot alive while browsing other pages
+  var bgMydxWs = null;
+  var bgMydxShouldRun = false;
+
+  function openBgMydxWs(mycall) {
+    closeBgMydxWs();
+    if (!mycall) return;
+    bgMydxShouldRun = true;
+    var proto = (location.protocol === 'https:') ? 'wss://' : 'ws://';
+    var url = proto + location.host + '/ws?mode=mydx&mycall=' + encodeURIComponent(mycall) + '&txrx=tx';
+    function connect() {
+      if (!bgMydxShouldRun) return;
+      bgMydxWs = new WebSocket(url);
+      bgMydxWs.onclose = function () {
+        bgMydxWs = null;
+        if (bgMydxShouldRun) setTimeout(connect, 5000);
+      };
+      // Received spots and messages are intentionally ignored
+    }
+    connect();
+  }
+
+  function closeBgMydxWs() {
+    bgMydxShouldRun = false;
+    if (bgMydxWs) {
+      bgMydxWs.onclose = null;
+      bgMydxWs.close();
+      bgMydxWs = null;
+    }
+  }
+
+  function sendMydxRelease(mycall) {
+    if (!mycall) return;
+    fetch('/api/mydx_release', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mycall: mycall}),
+      keepalive: true,
+    }).catch(function () {});
+  }
+
   function maidenheadToLatLon(grid) {
     if (!grid || grid.length < 4) return null;
     var g = grid.toUpperCase();
@@ -168,6 +209,7 @@
       },
       onTimeLimit: function () {
         statusEl.textContent = 'status: time limit reached';
+        closeBgMydxWs();
         wsClient.disconnect();
         document.getElementById('timeLimitDialog').showModal();
       },
@@ -260,15 +302,19 @@
     var mycallDialog = document.getElementById('mycallDialog');
 
     function applyMycall(val) {
+      var oldMycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
       var mycall = (val || '').trim().toUpperCase();
       if (!mycall) {
         window.PskCookies.setCookie('pskr_mycall', '', 0);
+        if (oldMycall) sendMydxRelease(oldMycall);
+        closeBgMydxWs();
         wsClient.clearAll();
         wsClient.disconnect();
         statusEl.textContent = 'status: enter your callsign';
         return;
       }
       window.PskCookies.setCookie('pskr_mycall', mycall, 365);
+      if (oldMycall && oldMycall !== mycall) sendMydxRelease(oldMycall);
       wsClient.clearAll();
       wsClient.disconnect();
       wsClient.connect({ currentMode: 'mydx', mycall: mycall, txrx: currentTxrx });
@@ -325,6 +371,12 @@
   function navigateTo(path) {
     var view = VIEWS[path];
     if (!view) { path = '/dx'; view = VIEWS['/dx']; }
+
+    // If leaving /my_dx, open a background WS to keep the MQTT slot alive
+    if (currentPath === '/my_dx') {
+      var leavingMycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
+      if (leavingMycall && path !== '/my_dx') openBgMydxWs(leavingMycall);
+    }
 
     // Disconnect outgoing connection
     wsClient.disconnect();
@@ -393,6 +445,7 @@
 
     // Connect
     if (view.defaultMode === 'mydx') {
+      closeBgMydxWs();  // display WS takes over the slot
       var mycall = (window.PskCookies.getCookie('pskr_mycall') || '').trim().toUpperCase();
       if (mycall) {
         wsClient.connect({ currentMode: 'mydx', mycall: mycall, txrx: currentTxrx });

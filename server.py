@@ -20,7 +20,7 @@ try:
 except ImportError:
     yaml = None  # type: ignore
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 import paho.mqtt.client as mqtt
@@ -555,7 +555,9 @@ def mydx_get_open_callsigns() -> list[str]:
 
 
 def mydx_used_seconds(mycall: str) -> float:
-    """Return total connected seconds for mycall in the last 24 hours."""
+    """Return total connected seconds for mycall in the last 24 hours.
+    Overlapping sessions (e.g. display WS + background keepalive WS open simultaneously)
+    are merged so they are not double-counted."""
     assert _db is not None
     since = time.time() - 86400
     with _db_lock:
@@ -566,12 +568,25 @@ def mydx_used_seconds(mycall: str) -> float:
             """,
             (mycall, since),
         )
-        total = 0.0
         now = time.time()
+        intervals = []
         for connected_at, disconnected_at in cur.fetchall():
             start = max(connected_at, since)
             end = disconnected_at if disconnected_at is not None else now
-            total += max(0.0, end - start)
+            if end > start:
+                intervals.append((start, end))
+        if not intervals:
+            return 0.0
+        intervals.sort()
+        total = 0.0
+        cur_start, cur_end = intervals[0]
+        for start, end in intervals[1:]:
+            if start <= cur_end:
+                cur_end = max(cur_end, end)
+            else:
+                total += cur_end - cur_start
+                cur_start, cur_end = start, end
+        total += cur_end - cur_start
         return total
 
 
@@ -1004,14 +1019,23 @@ async def _handle_mydx_ws(websocket: WebSocket):
         if slot:
             slot["clients"].pop(websocket, None)
             if not slot["clients"]:
-                async def _grace_release(cs: str = mycall):
-                    await asyncio.sleep(30)
-                    s = mydx_slots.get(cs)
-                    if s and not s["clients"]:
-                        del mydx_slots[cs]
-                        _mydx_unsubscribe(cs)
-                        await _mydx_broadcast_slots()
-                slot["release_task"] = asyncio.create_task(_grace_release())
+                if slot.get("immediate_release"):
+                    del mydx_slots[mycall]
+                    _mydx_unsubscribe(mycall)
+                    asyncio.create_task(_mydx_broadcast_slots())
+                else:
+                    async def _grace_release(cs: str = mycall):
+                        await asyncio.sleep(30)
+                        s = mydx_slots.get(cs)
+                        if s and not s["clients"]:
+                            del mydx_slots[cs]
+                            _mydx_unsubscribe(cs)
+                            await _mydx_broadcast_slots()
+                    slot["release_task"] = asyncio.create_task(_grace_release())
+            else:
+                # Other clients remain — the immediate_release was for the disconnecting
+                # browser only; clear the flag so remaining browsers get normal grace.
+                slot.pop("immediate_release", None)
 
 
 @app.websocket("/ws")
@@ -1068,6 +1092,27 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
     finally:
         clients.pop(websocket, None)
+
+
+@app.post("/api/mydx_release")
+async def api_mydx_release(request: Request):
+    """Signal intentional release of a mydx slot — skips the grace timer."""
+    data = await request.json()
+    mycall = (data.get("mycall") or "").strip().upper()
+    if not mycall:
+        return {"ok": False}
+    slot = mydx_slots.get(mycall)
+    if slot:
+        slot["immediate_release"] = True
+        if not slot["clients"]:
+            # WebSocket already closed and grace timer is running — cancel and release now
+            rt = slot.get("release_task")
+            if rt and not rt.done():
+                rt.cancel()
+            del mydx_slots[mycall]
+            _mydx_unsubscribe(mycall)
+            asyncio.create_task(_mydx_broadcast_slots())
+    return {"ok": True}
 
 
 @app.get("/api/dxpeditions")

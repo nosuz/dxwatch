@@ -248,6 +248,8 @@
     }
 
     function resume() {
+      cleanupMarkers();  // prune expired spots from spotBuffer
+      rerender();        // immediately redraw still-valid spots before the async worker flush arrives
       workers.forEach(function (w) { w.postMessage({ type: 'resume' }); });
     }
 
