@@ -295,6 +295,18 @@ html, body {
   line-height: 0;
 }
 
+.spot-popup-wrap .leaflet-popup-content-wrapper {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+.spot-popup-wrap .leaflet-popup-tip { background: #1e1e2e; }
+.spot-popup-wrap .leaflet-popup-content { margin: 8px 12px; }
+.spot-popup-call { font-size: 15px; font-weight: bold; color: #89b4fa; }
+.spot-popup-sub  { font-size: 12px; color: #a6adc8; margin-top: 2px; }
+
 #activityDialogHeatmap {
   padding: 10px 14px 12px;
   overflow-x: auto;

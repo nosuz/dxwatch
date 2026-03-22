@@ -799,12 +799,17 @@ async def _mydx_dispatch(mycall: str, role: str, data: dict):
         except Exception:
             pass
 
+    snr_val = data.get("rp")
+    freq_val = data.get("f")
+    spot_mode_val = data.get("spot_mode", "")
+
     payloads: dict[str, str] = {}
     if role == "sc" and rl_lat is not None:
         payloads["tx"] = json.dumps({
             "type": "spot", "mode": "mydx", "txrx": "tx",
             "lat": rl_lat, "lon": rl_lon,
             "b": b, "sc": sc, "rc": rc, "ts": ts,
+            "snr": snr_val, "f": freq_val, "spot_mode": spot_mode_val,
         })
         mydx_db_insert(mycall, ts, "tx", payloads["tx"])
     if role == "rc" and sl_lat is not None:
@@ -812,6 +817,7 @@ async def _mydx_dispatch(mycall: str, role: str, data: dict):
             "type": "spot", "mode": "mydx", "txrx": "rx",
             "lat": sl_lat, "lon": sl_lon,
             "b": b, "sc": sc, "rc": rc, "ts": ts,
+            "snr": snr_val, "f": freq_val, "spot_mode": spot_mode_val,
         })
         mydx_db_insert(mycall, ts, "rx", payloads["rx"])
 
@@ -853,6 +859,10 @@ def on_message(client, userdata, msg):
         sl = data.get("sl")
         sc = data.get("sc")
         rc = data.get("rc")
+        topic_parts = msg.topic.split("/")
+        spot_mode = topic_parts[4] if len(topic_parts) > 4 else ""
+        snr = data.get("rp")   # received power / signal report (dB)
+        freq = data.get("f")
 
         # --- from_jp / to_jp / dxpedition processing ---
         if mode is not None:
@@ -912,6 +922,9 @@ def on_message(client, userdata, msg):
                         "sc": sc,
                         "rc": rc,
                         "dxcall": dxcall,
+                        "snr": snr,
+                        "f": freq,
+                        "spot_mode": spot_mode,
                         "ts": time.time(),
                     }
                 )
@@ -929,18 +942,18 @@ def on_message(client, userdata, msg):
 
         # --- mydx proxy routing ---
         if has_mydx:
-            parts = msg.topic.split("/")
-            if len(parts) >= 7:
-                sc_t = parts[5].upper()
-                rc_t = parts[6].upper()
+            if len(topic_parts) >= 7:
+                sc_t = topic_parts[5].upper()
+                rc_t = topic_parts[6].upper()
+                data_aug = {**data, "spot_mode": spot_mode}
                 if sc_t in mydx_slots:
                     if main_loop is not None:
                         main_loop.call_soon_threadsafe(
-                            asyncio.create_task, _mydx_dispatch(sc_t, "sc", data))
+                            asyncio.create_task, _mydx_dispatch(sc_t, "sc", data_aug))
                 elif rc_t in mydx_slots:
                     if main_loop is not None:
                         main_loop.call_soon_threadsafe(
-                            asyncio.create_task, _mydx_dispatch(rc_t, "rc", data))
+                            asyncio.create_task, _mydx_dispatch(rc_t, "rc", data_aug))
 
     except Exception as exc:
         print("Error: %s", exc)

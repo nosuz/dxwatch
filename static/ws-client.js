@@ -96,10 +96,38 @@
       });
     }
 
+    function buildPopupContent(entry) {
+      // Pick the callsign of the station AT the marker location (the DX / non-Japan side)
+      var callsign = '';
+      if (entry.dataMode === 'from_jp') {
+        callsign = entry.rc;        // marker = DX receiver
+      } else if (entry.dataMode === 'to_jp') {
+        callsign = entry.sc;        // marker = DX sender
+      } else if (entry.dataMode === 'dxpedition') {
+        callsign = entry.sc;
+      } else if (entry.dataMode === 'mydx') {
+        callsign = entry.txrx === 'tx' ? entry.rc : entry.sc;
+      }
+      var freqStr = entry.freq ? (entry.freq / 1e6).toFixed(3) + ' MHz' : '';
+      var snrStr  = entry.snr  != null ? (entry.snr > 0 ? '+' : '') + entry.snr + ' dB' : '';
+      var html = '<div class="spot-popup">';
+      if (callsign)  html += '<div class="spot-popup-call">' + callsign + '</div>';
+      if (entry.spotMode || freqStr) {
+        html += '<div class="spot-popup-sub">' + entry.spotMode;
+        if (entry.spotMode && freqStr) html += '&ensp;';
+        html += freqStr + '</div>';
+      }
+      if (snrStr)    html += '<div class="spot-popup-sub">SNR: ' + snrStr + '</div>';
+      html += '</div>';
+      return html;
+    }
+
     function renderEntry(entry) {
       var icon = makeShapeIcon(entry.shape, entry.color, entry.cue, entry.dot, entry.cueColor, entry.dotColor);
+      var popup = buildPopupContent(entry);
       [-360, 0, 360].forEach(function (offset) {
         var marker = L.marker([entry.lat, entry.lon + offset], { icon: icon }).addTo(map);
+        marker.bindPopup(popup, { className: 'spot-popup-wrap' });
         markers.push({ marker: marker, timestamp: entry.timestamp });
       });
     }
@@ -145,7 +173,10 @@
       var cueColor = window.PskUi.BAND_CUE_COLORS[bKey] || '#fff';
       var dot = !!DOT_BANDS[bKey];
       var dotColor = (bKey === 17) ? '#000' : '#fff';
-      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, cue: cueKey, cueColor: cueColor, dot: dot, dotColor: dotColor, band: bKey };
+      var entry = { lat: data.lat, lon: normLon, timestamp: timestamp, shape: shape, color: color, cue: cueKey, cueColor: cueColor, dot: dot, dotColor: dotColor, band: bKey,
+                    sc: data.sc || '', rc: data.rc || '', snr: data.snr != null ? data.snr : null,
+                    freq: data.f || null, spotMode: data.spot_mode || '', dataMode: data.mode || '',
+                    txrx: data.txrx || '', dxcall: data.dxcall || '' };
       spotBuffer.push(entry);
 
       if (!selectedBands || selectedBands.has(bKey)) {
