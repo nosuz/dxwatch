@@ -54,6 +54,7 @@
             color: '#888',
             weight: 1,
             fillOpacity: 0,
+            interactive: false,
           }).addTo(gridLayers);
 
           const locator = latlonToMaidenhead(centerLat, normLon).substring(0, labelDigits);
@@ -64,6 +65,7 @@
               iconAnchor: [10, 10],
               html: '<span style="font-size:20px; color: rgba(255,0,0,0.5); font-weight:bold;">' + locator + '</span>',
             }),
+            interactive: false,
           }).addTo(gridLayers);
         }
       }

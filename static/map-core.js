@@ -1,7 +1,7 @@
 (function () {
   function addTerminator(map, enabled) {
     if (!enabled || !L.terminator) return null;
-    const terminator = L.terminator({ fillOpacity: 0.15 }).addTo(map);
+    const terminator = L.terminator({ fillOpacity: 0.15, interactive: false }).addTo(map);
     setInterval(function () {
       terminator.setTime(new Date());
     }, 60 * 1000);
