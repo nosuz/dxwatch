@@ -17,7 +17,7 @@
         { value: 'from_jp', label: 'JP→World' },
         { value: 'to_jp',   label: 'World→JP' },
       ],
-      map: { center: [0, 138], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
+      map: { center: [0, 138], zoom: 3, minZoom: 2, maxBounds: GLOBAL_BOUNDS },
     },
     '/local': {
       title: 'DX Watch: Local',
@@ -46,7 +46,7 @@
         { value: 'rx', label: 'RX (I heard)' },
       ],
       showMycall: true,
-      map: { center: [0, 138], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
+      map: { center: [0, 138], zoom: 3, minZoom: 2, maxBounds: GLOBAL_BOUNDS },
     },
     '/dxpedition': {
       title: 'DX Watch: DX-pedition',
@@ -55,7 +55,7 @@
       local: false,
       markerTtl: 900000,
       showDxcallSelect: true,
-      map: { center: [0, 138], zoom: 3, minZoom: 3, maxBounds: GLOBAL_BOUNDS },
+      map: { center: [0, 138], zoom: 3, minZoom: 2, maxBounds: GLOBAL_BOUNDS },
     },
   };
 
@@ -163,7 +163,7 @@
     map = window.PskMap.createMap({
       center: [0, 138],
       zoom: 3,
-      minZoom: 3,
+      minZoom: 2,
       maxZoom: 11,
       maxBounds: GLOBAL_BOUNDS,
       showGrid: true,
