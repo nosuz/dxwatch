@@ -348,7 +348,7 @@
       if (!currentPath || currentPath === '/local' || currentPath === '/dxpedition') return;
       var c = map.getCenter();
       var normLng = ((c.lng + 180) % 360 + 360) % 360 - 180;
-      window.PskCookies.setCookie('pskr_center_' + currentPath.slice(1), c.lat.toFixed(4) + ',' + normLng.toFixed(4), 365);
+      window.PskCookies.setCookie('pskr_center_' + currentPath.slice(1), c.lat.toFixed(4) + ',' + normLng.toFixed(4) + ',' + map.getZoom(), 365);
     });
 
     document.addEventListener('visibilitychange', function () {
@@ -438,6 +438,8 @@
         var parts = saved.split(',');
         var lat = parseFloat(parts[0]), lon = parseFloat(parts[1]);
         if (!isNaN(lat) && !isNaN(lon)) center = [lat, lon];
+        var savedZoom = parts[2] ? parseInt(parts[2], 10) : NaN;
+        if (!isNaN(savedZoom)) view = Object.assign({}, view, { map: Object.assign({}, view.map, { zoom: savedZoom }) });
       }
     }
     map.setView(center, view.map.zoom);
