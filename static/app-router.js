@@ -469,6 +469,13 @@
     fetch('/api/dxpeditions')
       .then(function (r) { return r.json(); })
       .then(function (list) {
+        list.sort(function (a, b) {
+          var na = (a.entity_name || '').trim();
+          var nb = (b.entity_name || '').trim();
+          if (na && !nb) return -1;
+          if (!na && nb) return 1;
+          return na < nb ? -1 : na > nb ? 1 : 0;
+        });
         dxpeditionList = list;
         list.forEach(function (d) {
           var opt = document.createElement('option');
