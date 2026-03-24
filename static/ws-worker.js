@@ -3,12 +3,17 @@
 
 const BUFFER_MS = 900 * 1000;  // 15 min — matches mydx server buffer
 
+const MAX_RETRIES = 10;
+const RECONNECT_BASE_MS = 5000;
+const RECONNECT_MAX_MS = 60000;
+
 let ws = null;
 let connectUrl = null;
 let buffer = [];
 let paused = false;
 let reconnectTimer = null;
 let stopReconnect = false;  // set when server signals unavailable
+let retryCount = 0;
 
 function pruneBuffer() {
   var cutoff = Date.now() - BUFFER_MS;
@@ -25,12 +30,21 @@ function clearReconnectTimer() {
 }
 
 function scheduleReconnect() {
+  if (retryCount >= MAX_RETRIES) {
+    console.warn('[ws-worker] max retries (' + MAX_RETRIES + ') reached, giving up');
+    self.postMessage({ type: 'status', text: 'websocket reconnect failed (max retries)' });
+    return;
+  }
   clearReconnectTimer();
-  console.log('[ws-worker] reconnecting in 5s...');
+  var exp = Math.min(RECONNECT_BASE_MS * Math.pow(2, retryCount), RECONNECT_MAX_MS);
+  var jitter = Math.random() * exp * 0.5;
+  var delay = Math.round(exp * 0.5 + jitter);
+  retryCount++;
+  console.log('[ws-worker] reconnecting in ' + delay + 'ms (attempt ' + retryCount + '/' + MAX_RETRIES + ')...');
   reconnectTimer = setTimeout(function () {
     reconnectTimer = null;
     if (connectUrl) doConnect();
-  }, 5000);
+  }, delay);
 }
 
 function doConnect() {
@@ -39,6 +53,7 @@ function doConnect() {
 
   ws.onopen = function () {
     clearReconnectTimer();
+    retryCount = 0;
     // Server will replay last 180s from SQLite — discard any stale buffer
     buffer = [];
     console.log('[ws-worker] connected:', connectUrl);
@@ -81,6 +96,7 @@ self.onmessage = function (e) {
     buffer = [];
     paused = false;
     stopReconnect = false;
+    retryCount = 0;
     clearReconnectTimer();
     if (ws) {
       try { ws.close(1000, 'reconnect'); } catch (_) {}
