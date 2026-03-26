@@ -11,7 +11,7 @@ from pathlib import Path
 
 import requests_cache
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from staticmap import IconMarker, StaticMap
 import staticmap.staticmap as _sm
 
@@ -200,6 +200,25 @@ def _band_int(b: str) -> int:
         return 0
 
 
+def _draw_timestamp(image: Image.Image, dt: datetime) -> None:
+    """Draw UTC date and time at the bottom-left corner of the image (in-place)."""
+    label = dt.strftime("%Y-%m-%d  %H:%M") + " UTC"
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf", 42)
+    except OSError:
+        font = ImageFont.load_default(size=42)
+    draw = ImageDraw.Draw(image)
+    x, y = 12, image.height - 58
+    # Semi-transparent dark background pill for guaranteed contrast
+    bbox = draw.textbbox((x, y), label, font=font)
+    pad = 6
+    draw.rounded_rectangle(
+        [bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad],
+        radius=6, fill=(0, 0, 0, 180),
+    )
+    draw.text((x, y), label, font=font, fill=(255, 255, 255, 255))
+
+
 def generate_snapshot(out_path: Path | None = None, mode: str = "from_jp") -> Path:
     now = datetime.now(timezone.utc)
     if out_path is None:
@@ -244,6 +263,7 @@ def generate_snapshot(out_path: Path | None = None, mode: str = "from_jp") -> Pa
 
     image = m.render(zoom=MAP_ZOOM, center=(MAP_CENTER_LON, MAP_CENTER_LAT))
     image = _draw_night_overlay(image, now)
+    _draw_timestamp(image, now)
     image.save(str(out_path))
     print(
         f"[snapshot] {out_path.name}  mode={mode}  spots={added}", flush=True)

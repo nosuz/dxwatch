@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.4
 FROM python:3-alpine
 
+RUN apk add --no-cache ttf-dejavu
+
 # install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
