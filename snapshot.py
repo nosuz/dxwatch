@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import requests_cache
 import numpy as np
 from PIL import Image, ImageDraw
 from staticmap import IconMarker, StaticMap
@@ -21,6 +22,11 @@ _sm._lon_to_x = lambda lon, zoom: ((lon + 180.0) / 360.0) * pow(2, zoom)
 
 DB_PATH = Path(__file__).parent / "data" / "spots.db"
 OUT_DIR = Path(__file__).parent / "data" / "timelapse"
+TILE_CACHE_PATH = Path(__file__).parent / "data" / "tile_cache"
+
+# Install a persistent requests cache so OSM tiles are only downloaded once.
+# expire_after=-1 means cached forever (map tiles at zoom 3 never change).
+requests_cache.install_cache(str(TILE_CACHE_PATH), expire_after=-1)
 
 # Matches map-ui.js COLOR_MAP; key = band integer (strip "m" suffix)
 BAND_COLORS = {
