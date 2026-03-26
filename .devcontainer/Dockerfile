@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     # ssh is required to handle GitHub in the container
     git ssh \
     python3 ca-certificates \
-    fonts-dejavu \
+    ffmpeg fonts-dejavu \
     # System tools
     locales tzdata \
     # Configure locale
