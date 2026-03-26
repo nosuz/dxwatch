@@ -72,9 +72,16 @@
       grid[d].forEach(function (c) { if (c > maxCount) maxCount = c; });
     });
 
+    var nowHour = new Date().getUTCHours();
+
     var html = '<table class="act-table"><thead><tr><th></th>';
     for (var h = 0; h < 24; h++) {
-      html += '<th>' + (h < 10 ? '0' + h : '' + h) + '</th>';
+      var label = h < 10 ? '0' + h : '' + h;
+      if (h === nowHour) {
+        html += '<th style="color:#f90;font-weight:bold">' + label + '</th>';
+      } else {
+        html += '<th>' + label + '</th>';
+      }
     }
     html += '</tr></thead><tbody>';
 
