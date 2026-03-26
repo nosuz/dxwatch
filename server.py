@@ -430,15 +430,15 @@ def sync_dxpedition_subscriptions():
     active: set[str] = set()
     for row in get_active_dxpeditions():
         for cs in row["callsign"].split(","):
-            cs = cs.strip().upper().replace('/', '%2F')
+            cs = cs.strip().upper()
             if cs:
                 active.add(cs)
     if mqtt_client is not None:
         for cs in dxpedition_subscribed_callsigns - active:
-            mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/{cs}/#")
+            mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/{cs.replace('/', '.')}/#")
             print("Unsubscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
         for cs in active - dxpedition_subscribed_callsigns:
-            mqtt_client.subscribe(f"pskr/filter/v2/+/+/{cs}/#")
+            mqtt_client.subscribe(f"pskr/filter/v2/+/+/{cs.replace('/', '.')}/#")
             print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
     dxpedition_subscribed_callsigns = active
 
@@ -604,9 +604,6 @@ def mydx_close_all_sessions():
 
 def mode_from_topic(topic: str) -> str | None:
     parts = topic.split("/")
-    # Check dxpedition first (callsign at position 5)
-    if len(parts) > 5 and parts[5] in dxpedition_subscribed_callsigns:
-        return "dxpedition"
     if len(parts) >= 2 and parts[-2] == "339":
         return "from_jp"
     if len(parts) >= 1 and parts[-1] == "339":
@@ -744,7 +741,7 @@ async def heartbeat_task():
 def _mydx_subscribe(mycall: str):
     if mqtt_client is None:
         return
-    enc = mycall.replace("/", "%2F")
+    enc = mycall.replace("/", ".")
     mqtt_client.subscribe(f"pskr/filter/v2/+/+/{enc}/#")
     mqtt_client.subscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
     print(f"[mydx] subscribed {mycall}, slots={len(mydx_slots)}/{get_mydx_max_slots()}")
@@ -753,7 +750,7 @@ def _mydx_subscribe(mycall: str):
 def _mydx_unsubscribe(mycall: str):
     if mqtt_client is None:
         return
-    enc = mycall.replace("/", "%2F")
+    enc = mycall.replace("/", ".")
     mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/{enc}/#")
     mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
     print(f"[mydx] unsubscribed {mycall}, slots={len(mydx_slots)}/{get_mydx_max_slots()}")
@@ -835,10 +832,10 @@ def on_connect(client, userdata, flags, reason_code, properties):
     client.subscribe(TOPIC_FROM_JP)
     client.subscribe(TOPIC_TO_JP)
     for cs in dxpedition_subscribed_callsigns:
-        client.subscribe(f"pskr/filter/v2/+/+/{cs}/#")
+        client.subscribe(f"pskr/filter/v2/+/+/{cs.replace('/', '.')}/#")
         print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
     for cs in mydx_slots:
-        enc = cs.replace("/", "%2F")
+        enc = cs.replace("/", ".")
         client.subscribe(f"pskr/filter/v2/+/+/{enc}/#")
         client.subscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
     print("Subscribed: %s", TOPIC_FROM_JP)
@@ -851,7 +848,7 @@ def on_message(client, userdata, msg):
         mode = mode_from_topic(msg.topic)
         has_mydx = bool(mydx_slots)
 
-        if mode is None and not has_mydx:
+        if mode is None and not has_mydx and not dxpedition_subscribed_callsigns:
             return
 
         data = json.loads(msg.payload.decode())
@@ -859,10 +856,14 @@ def on_message(client, userdata, msg):
         sl = data.get("sl")
         sc = data.get("sc")
         rc = data.get("rc")
+        sc_upper = (sc or "").upper()
         topic_parts = msg.topic.split("/")
         spot_mode = topic_parts[4] if len(topic_parts) > 4 else ""
         snr = data.get("rp")   # received power / signal report (dB)
         freq = data.get("f")
+
+        if mode is None and sc_upper in dxpedition_subscribed_callsigns:
+            mode = "dxpedition"
 
         # --- from_jp / to_jp / dxpedition processing ---
         if mode is not None:
@@ -901,8 +902,7 @@ def on_message(client, userdata, msg):
                 else:
                     marker_lat, marker_lon = rl_lat, rl_lon
                     peer_lat, peer_lon = sl_lat, sl_lon
-                    parts = msg.topic.split("/")
-                    dxcall = parts[5].upper() if len(parts) > 5 else None
+                    dxcall = sc_upper or None
                     last_mqtt_ts_dxpedition = time.time()
             else:
                 send_mode = False
@@ -942,18 +942,16 @@ def on_message(client, userdata, msg):
 
         # --- mydx proxy routing ---
         if has_mydx:
-            if len(topic_parts) >= 7:
-                sc_t = topic_parts[5].upper()
-                rc_t = topic_parts[6].upper()
-                data_aug = {**data, "spot_mode": spot_mode}
-                if sc_t in mydx_slots:
-                    if main_loop is not None:
-                        main_loop.call_soon_threadsafe(
-                            asyncio.create_task, _mydx_dispatch(sc_t, "sc", data_aug))
-                elif rc_t in mydx_slots:
-                    if main_loop is not None:
-                        main_loop.call_soon_threadsafe(
-                            asyncio.create_task, _mydx_dispatch(rc_t, "rc", data_aug))
+            rc_upper = (rc or "").upper()
+            data_aug = {**data, "spot_mode": spot_mode}
+            if sc_upper in mydx_slots:
+                if main_loop is not None:
+                    main_loop.call_soon_threadsafe(
+                        asyncio.create_task, _mydx_dispatch(sc_upper, "sc", data_aug))
+            elif rc_upper in mydx_slots:
+                if main_loop is not None:
+                    main_loop.call_soon_threadsafe(
+                        asyncio.create_task, _mydx_dispatch(rc_upper, "rc", data_aug))
 
     except Exception as exc:
         print("Error: %s", exc)
