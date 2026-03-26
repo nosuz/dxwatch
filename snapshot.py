@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageDraw
 from staticmap import IconMarker, StaticMap
 import staticmap.staticmap as _sm
@@ -56,20 +57,26 @@ ICON_SIZE = 22   # matches web app SVG size
 # zoom=3 → tile world = 256×2³ = 2048 px wide = exactly 360° longitude.
 # Height is derived so the map covers 75°N to 60°S (all major landmasses).
 MAP_ZOOM = 3
-MAP_CENTER_LON = 150   # Cut falls at 30°W (open Atlantic), Iceland and SA both intact
+# Cut falls at 30°W (open Atlantic), Iceland and SA both intact
+MAP_CENTER_LON = 150
+
 
 def _mercator_y(lat_deg: float) -> float:
     r = math.radians(lat_deg)
     return math.log(math.tan(math.pi / 4 + r / 2))
 
-_LAT_TOP    =  75.0   # northernmost latitude to show
-_LAT_BOTTOM = -60.0   # southernmost latitude to show
-_PX_PER_MERCATOR = (256 * 2 ** MAP_ZOOM) / (2 * math.pi)  # ≈ 325.9 px per mercator unit
-_Y_TOP    = _mercator_y(_LAT_TOP)
-_Y_BOTTOM = _mercator_y(_LAT_BOTTOM)
-MAP_CENTER_LAT = math.degrees(2 * math.atan(math.exp((_Y_TOP + _Y_BOTTOM) / 2)) - math.pi / 2)
 
-WIDTH  = 256 * 2 ** MAP_ZOOM                              # = 2048 (exactly 360°)
+_LAT_TOP = 75.0   # northernmost latitude to show
+_LAT_BOTTOM = -60.0   # southernmost latitude to show
+_PX_PER_MERCATOR = (256 * 2 ** MAP_ZOOM) / \
+    (2 * math.pi)  # ≈ 325.9 px per mercator unit
+_Y_TOP = _mercator_y(_LAT_TOP)
+_Y_BOTTOM = _mercator_y(_LAT_BOTTOM)
+MAP_CENTER_LAT = math.degrees(
+    2 * math.atan(math.exp((_Y_TOP + _Y_BOTTOM) / 2)) - math.pi / 2)
+
+# = 2048 (exactly 360°)
+WIDTH = 256 * 2 ** MAP_ZOOM
 HEIGHT = round((_Y_TOP - _Y_BOTTOM) * _PX_PER_MERCATOR)  # ≈ 1090
 
 
@@ -102,15 +109,16 @@ def _draw_cue(draw: ImageDraw.ImageDraw, cue_key: str, color: str):
 
 def _make_icon(band_int: int) -> bytes:
     """Render a 22×22 RGBA circle marker matching the web app appearance."""
-    color     = BAND_COLORS.get(band_int, BAND_COLORS[0])
-    cue_key   = BAND_CUES.get(band_int, "")
+    color = BAND_COLORS.get(band_int, BAND_COLORS[0])
+    cue_key = BAND_CUES.get(band_int, "")
     cue_color = BAND_CUE_COLORS.get(band_int, "#fff")
 
-    img  = Image.new("RGBA", (ICON_SIZE, ICON_SIZE), (0, 0, 0, 0))
+    img = Image.new("RGBA", (ICON_SIZE, ICON_SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
     # Circle: cx=11 cy=11 r=9.5 fill=color stroke=white 1.5 (matches SVG shape 0)
-    draw.ellipse([1, 1, 20, 20], fill=_hex_to_rgb(color) + (255,), outline=(255, 255, 255, 255), width=2)
+    draw.ellipse([1, 1, 20, 20], fill=_hex_to_rgb(color) +
+                 (255,), outline=(255, 255, 255, 255), width=2)
 
     if cue_key:
         _draw_cue(draw, cue_key, cue_color)
@@ -133,6 +141,50 @@ def _get_icon(band_int: int) -> io.BytesIO:
     if band_int not in _icon_cache:
         _icon_cache[band_int] = _make_icon(band_int)
     return io.BytesIO(_icon_cache[band_int])
+
+
+def _subsolar_point(dt: datetime) -> tuple[float, float]:
+    """Return (declination_rad, lon_rad) of the subsolar point for UTC datetime."""
+    J2000 = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    n = (dt - J2000).total_seconds() / 86400.0
+    L = (280.460 + 0.9856474 * n) % 360
+    g = math.radians((357.528 + 0.9856003 * n) % 360)
+    lam = math.radians(L + 1.915 * math.sin(g) + 0.020 * math.sin(2 * g))
+    eps = math.radians(23.439 - 0.0000004 * n)
+    dec = math.asin(math.sin(eps) * math.sin(lam))
+    ra = math.atan2(math.cos(eps) * math.sin(lam), math.cos(lam))
+    gmst = (280.46061837 + 360.98564736629 * n) % 360
+    lon_sun = ((-(gmst - math.degrees(ra)) + 180) % 360) - 180
+    return dec, math.radians(lon_sun)
+
+
+def _draw_night_overlay(image: Image.Image, dt: datetime) -> Image.Image:
+    """Overlay the night side as a semi-transparent dark area using numpy."""
+    dec, lon_sun = _subsolar_point(dt)
+    w, h = image.size
+
+    # Pixel → longitude (radians)
+    x_center_tiles = (MAP_CENTER_LON + 180.0) / 360.0 * (2 ** MAP_ZOOM)
+    tile_x = x_center_tiles - w / (2 * 256) + np.arange(w) / 256.0
+    lon = np.radians(tile_x / (2 ** MAP_ZOOM) * 360 - 180)  # shape (w,)
+
+    # Pixel → latitude (radians) via inverse Mercator
+    y_center_tiles = (1 - _mercator_y(MAP_CENTER_LAT) /
+                      math.pi) / 2 * (2 ** MAP_ZOOM)
+    tile_y = y_center_tiles - h / (2 * 256) + np.arange(h) / 256.0
+    merc_y = math.pi * (1 - 2 * tile_y / (2 ** MAP_ZOOM))
+    lat = 2 * np.arctan(np.exp(merc_y)) - math.pi / 2  # shape (h,)
+
+    # cos(solar zenith) < 0 → night
+    cos_zenith = (np.sin(lat)[:, None] * math.sin(dec) +
+                  np.cos(lat)[:, None] * math.cos(dec) * np.cos(lon[None, :] - lon_sun))
+    night = cos_zenith < 0  # shape (h, w)
+
+    overlay = np.zeros((h, w, 4), dtype=np.uint8)
+    overlay[night] = [0, 0, 20, 40]   # dark blue, semi-transparent
+    result = Image.alpha_composite(image.convert("RGBA"),
+                                   Image.fromarray(overlay, "RGBA"))
+    return result.convert("RGB")
 
 
 def _band_int(b: str) -> int:
@@ -168,7 +220,8 @@ def generate_snapshot(out_path: Path | None = None, mode: str = "from_jp") -> Pa
             if lon is None or lat is None:
                 continue
             # Shift lon into the ±180° window around the map centre.
-            lon = MAP_CENTER_LON + ((lon - MAP_CENTER_LON + 180 + 360) % 360 - 180)
+            lon = MAP_CENTER_LON + \
+                ((lon - MAP_CENTER_LON + 180 + 360) % 360 - 180)
             band = _band_int(spot.get("b", ""))
             icon = _get_icon(band if band in BAND_COLORS else 0)
             m.add_marker(IconMarker((lon, lat), icon, half, half))
@@ -184,8 +237,10 @@ def generate_snapshot(out_path: Path | None = None, mode: str = "from_jp") -> Pa
         m.add_marker(IconMarker((0, 0), dot, 0, 0))
 
     image = m.render(zoom=MAP_ZOOM, center=(MAP_CENTER_LON, MAP_CENTER_LAT))
+    image = _draw_night_overlay(image, now)
     image.save(str(out_path))
-    print(f"[snapshot] {out_path.name}  mode={mode}  spots={added}", flush=True)
+    print(
+        f"[snapshot] {out_path.name}  mode={mode}  spots={added}", flush=True)
     return out_path
 
 
