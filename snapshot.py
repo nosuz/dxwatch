@@ -21,7 +21,7 @@ import staticmap.staticmap as _sm
 _sm._lon_to_x = lambda lon, zoom: ((lon + 180.0) / 360.0) * pow(2, zoom)
 
 DB_PATH = Path(__file__).parent / "data" / "spots.db"
-OUT_DIR = Path(__file__).parent / "data" / "timelapse"
+OUT_DIR = Path(__file__).parent / "data" / "timelapse_frames"
 TILE_CACHE_PATH = Path(__file__).parent / "data" / "tile_cache"
 
 # Install a persistent requests cache so OSM tiles are only downloaded once.

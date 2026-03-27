@@ -12,19 +12,21 @@ from datetime import date, timedelta
 from pathlib import Path
 import subprocess
 
+FRAMES_DIR = Path(__file__).parent / "data" / "timelapse_frames"
 OUT_DIR = Path(__file__).parent / "data" / "timelapse"
 
 DEFAULT_DURATION = 30  # total video length in seconds
 
 
 def make_movie(target_date: date, total_seconds: int = DEFAULT_DURATION) -> Path | None:
-    day_dir = OUT_DIR / target_date.isoformat()
+    day_dir = FRAMES_DIR / target_date.isoformat()
     frames = sorted(day_dir.glob("*.png")) if day_dir.exists() else []
     if len(frames) < 2:
         print(f"[make_movie] {target_date}: only {len(frames)} frame(s), skipping")
         return None
 
     frame_duration = total_seconds / len(frames)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUT_DIR / f"{target_date.isoformat()}.mp4"
 
     list_file = day_dir / "frames.txt"
