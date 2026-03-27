@@ -349,3 +349,29 @@ html, body {
   padding: 20px 0;
   text-align: center;
 }
+
+/* ── Floating movie download button ── */
+#movieDownloadBtn {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 1000;
+  background: rgba(30, 30, 46, 0.85);
+  color: #89b4fa;
+  border: 1.5px solid #45475a;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-family: sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+#movieDownloadBtn:hover {
+  background: rgba(137, 180, 250, 0.15);
+  color: #b4d0fb;
+  border-color: #89b4fa;
+}

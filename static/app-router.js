@@ -428,6 +428,22 @@
     if (view.showMycall) { show(configBtnEl); } else { hide(configBtnEl); }
     if (view.showLimitSlider) { show(limitCtrlEl); } else { hide(limitCtrlEl); }
 
+    var movieBtn = document.getElementById('movieDownloadBtn');
+    if (path === '/dx') {
+      movieBtn.textContent = 'Download Yesterday\'s Timelapse';
+      movieBtn.onclick = function () {
+        var yesterday = new Date(Date.now() - 86400000);
+        var yy = yesterday.getUTCFullYear();
+        var mm = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
+        var dd = String(yesterday.getUTCDate()).padStart(2, '0');
+        movieBtn.href = '/timelapse/' + yy + '-' + mm + '-' + dd + '.mp4';
+      };
+      show(movieBtn);
+    } else {
+      movieBtn.onclick = null;
+      hide(movieBtn);
+    }
+
     map.setMinZoom(view.map.minZoom);
     map.setMaxBounds(view.map.maxBounds);
 

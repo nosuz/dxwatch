@@ -125,6 +125,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+TIMELAPSE_DIR = BASE_DIR / "data" / "timelapse"
+TIMELAPSE_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/timelapse", StaticFiles(directory=str(TIMELAPSE_DIR)), name="timelapse")
 
 # ==========================
 # MQTT設定（PSKReporter）
