@@ -430,19 +430,39 @@
 
     var movieBtn = document.getElementById('movieDownloadBtn');
     if (path === '/dx') {
-      movieBtn.textContent = 'Download Yesterday\'s Timelapse';
-      movieBtn.onclick = function () {
+      movieBtn.onclick = function (e) {
+        e.preventDefault();
         var yesterday = new Date(Date.now() - 86400000);
         var yy = yesterday.getUTCFullYear();
         var mm = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
         var dd = String(yesterday.getUTCDate()).padStart(2, '0');
-        movieBtn.href = '/timelapse/' + yy + '-' + mm + '-' + dd + '.mp4';
+        var dateStr = yy + '-' + mm + '-' + dd;
+        var url = '/timelapse/' + dateStr + '.mp4';
+        document.getElementById('movieVideo').src = url;
+        document.getElementById('moviePanelTitle').textContent = dateStr + ' Timelapse';
+        document.getElementById('movieDownloadLink').href = url;
+        document.getElementById('movieOverlay').style.display = 'flex';
       };
       show(movieBtn);
     } else {
       movieBtn.onclick = null;
       hide(movieBtn);
     }
+    document.getElementById('movieCloseBtn').onclick = function () {
+      var overlay = document.getElementById('movieOverlay');
+      overlay.style.display = 'none';
+      var video = document.getElementById('movieVideo');
+      video.pause();
+      video.src = '';
+    };
+    document.getElementById('movieOverlay').onclick = function (e) {
+      if (e.target === this) {
+        this.style.display = 'none';
+        var video = document.getElementById('movieVideo');
+        video.pause();
+        video.src = '';
+      }
+    };
 
     map.setMinZoom(view.map.minZoom);
     map.setMaxBounds(view.map.maxBounds);

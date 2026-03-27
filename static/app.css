@@ -350,6 +350,60 @@ html, body {
   text-align: center;
 }
 
+/* ── Timelapse video overlay ── */
+#movieOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#moviePanel {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  max-width: 92vw;
+  max-height: 90vh;
+}
+#moviePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+}
+#moviePanelTitle {
+  font-family: sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #cdd6f4;
+}
+#movieCloseBtn {
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+#movieCloseBtn:hover { color: #cdd6f4; }
+#movieVideo {
+  display: block;
+  max-width: 92vw;
+  max-height: calc(90vh - 44px);
+}
+
 /* ── Floating movie download button ── */
 #movieDownloadBtn {
   position: fixed;

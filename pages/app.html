@@ -46,7 +46,20 @@
   </div>
 </div>
 <div id="map"></div>
-<a id="movieDownloadBtn" href="#" download style="display:none;"></a>
+<a id="movieDownloadBtn" href="#" style="display:none;">Yesterday's Timelapse</a>
+
+<div id="movieOverlay" style="display:none;">
+  <div id="moviePanel">
+    <div id="moviePanelHeader">
+      <span id="moviePanelTitle"></span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <a id="movieDownloadLink" href="#" download style="font-size:12px; color:#a6adc8; text-decoration:none;">Download</a>
+        <button id="movieCloseBtn" title="Close">&#x2715;</button>
+      </div>
+    </div>
+    <video id="movieVideo" controls autoplay muted></video>
+  </div>
+</div>
 
 <div id="activityDialog">
   <div id="activityDialogTitleBar">
