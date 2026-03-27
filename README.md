@@ -1,5 +1,7 @@
 # DXWatch server
 
+Sample site: [DX watch](https://dx-watch.jp)
+
 ## Required folders
 
 - data
@@ -34,15 +36,16 @@ scp dxwatch_image.tar user@server:/tmp/
 ### install image
 
 ```bash
-mkdir dxwatch
+mkdir -p dxwatch/data
 cd dxwatch
-mkdir data
 
-tar xf
+tar xf /tmp/dxwatch_image.tar
 docker load -i dxwatch.tar
 ```
 
-## start image
+## Control Docker Container
+
+### start container
 
 ```bash
 docker compose up -d web
@@ -50,24 +53,17 @@ docker compose up -d web
 
 `-d`が無いとフォアグラウンドで実行される。
 
-## stop image
+### stop container
 
 ```bash
 docker compose down
 ```
 
-## get into container
+### get into container
 
 ```bash
  docker exec -it  <CONTAINER ID or NAME> /bin/bash
  ```
-
-## Export DX-pedition data
-
-```bash
-docker compose run --rm export
-# restart server to update connections
-```
 
 ## Update DX-pedition data
 
@@ -77,10 +73,30 @@ Make a Excel (xlsx) or CSV (Comma Separated Value) file that have following colu
 callsign,entity_name,dxcc,grid,start_dt,end_dt,url,notes
 ```
 
-Place this file under data folder.
+Place this file under `data` folder.
 
-Restart `server.py`. The server import the DX-pedition data and replace the database. Sending `SIGHUP` can also update the database.
+Restart `server.py` or send `SIGHUP` to the container. The server import the DX-pedition data and replace the database.
 
 ```bash
 docker compose kill -s HUP web
+```
+
+## Export DX-pedition data
+
+```bash
+docker compose run --rm export
+```
+
+## Make propagation movie
+
+### Make snapshots
+
+```bash
+docker compose run --rm snapshot
+```
+
+### Make a movie
+
+```bash
+docker compose run --rm make_movie
 ```
