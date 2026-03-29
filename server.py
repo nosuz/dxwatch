@@ -865,7 +865,7 @@ def on_message(client, userdata, msg):
         snr = data.get("rp")   # received power / signal report (dB)
         freq = data.get("f")
 
-        if mode is None and sc_upper in dxpedition_subscribed_callsigns:
+        if sc_upper in dxpedition_subscribed_callsigns:
             mode = "dxpedition"
 
         # --- from_jp / to_jp / dxpedition processing ---
