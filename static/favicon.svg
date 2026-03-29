@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <!-- Globe: soft sky-blue, lit from top-left -->
+    <radialGradient id="bl-globe" cx="36%" cy="30%" r="68%" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#c8e8ff"/>
+      <stop offset="60%"  stop-color="#90c8f0"/>
+      <stop offset="100%" stop-color="#5a9fd4"/>
+    </radialGradient>
+
+    <!-- Background gradient: clean white to very light blue -->
+    <linearGradient id="bl-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e8f2ff"/>
+    </linearGradient>
+
+    <!-- Arc glow (subtle, for light bg) -->
+    <filter id="bl-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="1" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Japan dot halo -->
+    <filter id="bl-halo" x="-150%" y="-150%" width="400%" height="400%">
+      <feGaussianBlur stdDeviation="1.8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Clip arcs to globe -->
+    <clipPath id="bl-clip">
+      <circle cx="16" cy="16" r="15"/>
+    </clipPath>
+  </defs>
+
+  <!-- Light background -->
+  <rect width="32" height="32" rx="7" fill="url(#bl-bg)"/>
+
+  <!-- Globe -->
+  <circle cx="16" cy="16" r="15" fill="url(#bl-globe)"/>
+  <circle cx="16" cy="16" r="15" fill="none" stroke="#7ab8e0" stroke-width="0.8"/>
+
+  <!-- Radio wave arcs: concentric, centered on Japan (23,15), facing left -->
+  <!-- Arc 1 — closest, boldest -->
+  <path d="M 23 10 A 5 5 0 0 0 23 20"
+        fill="none" stroke="#0055cc" stroke-width="2.4"
+        stroke-linecap="round"
+        clip-path="url(#bl-clip)" filter="url(#bl-glow)"/>
+
+  <!-- Arc 2 — medium -->
+  <path d="M 23 7 A 8 8 0 0 0 23 23"
+        fill="none" stroke="#0066dd" stroke-width="1.7"
+        stroke-linecap="round" opacity="0.65"
+        clip-path="url(#bl-clip)" filter="url(#bl-glow)"/>
+
+  <!-- Arc 3 — farthest, most transparent -->
+  <path d="M 23 4 A 11 11 0 0 0 23 26"
+        fill="none" stroke="#0077ee" stroke-width="1.2"
+        stroke-linecap="round" opacity="0.35"
+        clip-path="url(#bl-clip)" filter="url(#bl-glow)"/>
+
+  <!-- Japan dot: warm orange — pops against blue globe -->
+  <circle cx="23" cy="15" r="4"   fill="#ff7700" opacity="0.18" filter="url(#bl-halo)"/>
+  <circle cx="23" cy="15" r="2.3" fill="#ff7700"/>
+  <circle cx="22" cy="14" r="0.9" fill="#ffcc99"/>
+</svg>
