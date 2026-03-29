@@ -428,40 +428,49 @@
     if (view.showMycall) { show(configBtnEl); } else { hide(configBtnEl); }
     if (view.showLimitSlider) { show(limitCtrlEl); } else { hide(limitCtrlEl); }
 
-    var movieBtn = document.getElementById('movieDownloadBtn');
+    var movieCtrl = document.getElementById('movieControl');
     if (path === '/dx') {
-      movieBtn.onclick = function (e) {
-        e.preventDefault();
-        var yesterday = new Date(Date.now() - 86400000);
-        var yy = yesterday.getUTCFullYear();
-        var mm = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
-        var dd = String(yesterday.getUTCDate()).padStart(2, '0');
-        var dateStr = yy + '-' + mm + '-' + dd;
-        var url = '/timelapse/' + dateStr + '.mp4';
-        document.getElementById('movieVideo').src = url;
-        document.getElementById('moviePanelTitle').textContent = dateStr + ' Timelapse';
-        document.getElementById('movieDownloadLink').href = url;
-        document.getElementById('movieOverlay').style.display = 'flex';
-      };
-      show(movieBtn);
+      show(movieCtrl);
     } else {
-      movieBtn.onclick = null;
-      hide(movieBtn);
+      hide(movieCtrl);
     }
+    function getYesterdayDateStr() {
+      var yesterday = new Date(Date.now() - 86400000);
+      var yy = yesterday.getUTCFullYear();
+      var mm = String(yesterday.getUTCMonth() + 1).padStart(2, '0');
+      var dd = String(yesterday.getUTCDate()).padStart(2, '0');
+      return yy + '-' + mm + '-' + dd;
+    }
+    function loadMovie(dateStr, sel) {
+      var url, title;
+      if (sel === 'snapshot') {
+        url   = '/timelapse/' + dateStr + '.mp4';
+        title = dateStr;
+      } else {
+        url   = '/timelapse/' + dateStr + '-heatmap-' + sel + '.mp4';
+        title = dateStr + ' ' + sel;
+      }
+      document.getElementById('movieVideo').src = url;
+      document.getElementById('moviePanelTitle').textContent = title;
+      document.getElementById('movieDownloadLink').href = url;
+    }
+    document.getElementById('moviePlayBtn').onclick = function () {
+      var dateStr = getYesterdayDateStr();
+      var sel = document.getElementById('movieSelect').value;
+      loadMovie(dateStr, sel);
+      document.getElementById('movieOverlay').style.display = 'flex';
+    };
+    document.getElementById('movieSelect').onchange = function () {
+      var overlay = document.getElementById('movieOverlay');
+      if (overlay.style.display === 'none') return;
+      loadMovie(getYesterdayDateStr(), this.value);
+    };
     document.getElementById('movieCloseBtn').onclick = function () {
       var overlay = document.getElementById('movieOverlay');
       overlay.style.display = 'none';
       var video = document.getElementById('movieVideo');
       video.pause();
       video.src = '';
-    };
-    document.getElementById('movieOverlay').onclick = function (e) {
-      if (e.target === this) {
-        this.style.display = 'none';
-        var video = document.getElementById('movieVideo');
-        video.pause();
-        video.src = '';
-      }
     };
 
     map.setMinZoom(view.map.minZoom);

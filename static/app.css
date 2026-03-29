@@ -382,9 +382,17 @@ html, body {
 }
 #moviePanelTitle {
   font-family: sans-serif;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  color: #6c7086;
+}
+#movieSelect {
+  font-size: 12px;
+  background: #313244;
   color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 3px 6px;
+  cursor: pointer;
 }
 #movieCloseBtn {
   background: none;
@@ -404,28 +412,39 @@ html, body {
   max-height: calc(90vh - 44px);
 }
 
-/* ── Floating movie download button ── */
-#movieDownloadBtn {
+/* ── Floating movie control panel ── */
+#movieControl {
   position: fixed;
   bottom: 24px;
   left: 24px;
   z-index: 1000;
-  background: rgba(30, 30, 46, 0.85);
-  color: #89b4fa;
+  background: rgba(30, 30, 46, 0.88);
   border: 1.5px solid #45475a;
   border-radius: 10px;
-  padding: 8px 14px;
+  padding: 8px 12px;
   font-family: sans-serif;
   font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
   backdrop-filter: blur(4px);
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
-#movieDownloadBtn:hover {
-  background: rgba(137, 180, 250, 0.15);
-  color: #b4d0fb;
-  border-color: #89b4fa;
+#movieControlLabel {
+  color: #a6adc8;
+  font-size: 12px;
 }
+#moviePlayBtn {
+  background: #89b4fa;
+  color: #1e1e2e;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.4;
+}
+#moviePlayBtn:hover { background: #b4d0fb; }
