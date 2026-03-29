@@ -38,7 +38,7 @@ services:
     volumes:
       - ./data:/app/data
     entrypoint: ["/opt/venv/bin/python"]
-    command: ["/app/snapshot.py"]
+    command: ["/app/snapshot.py", "--all"]
     restart: "no"
 
   make_movie:
@@ -51,5 +51,5 @@ services:
     volumes:
       - ./data:/app/data
     entrypoint: ["/opt/venv/bin/python"]
-    command: ["/app/make_movie.py"]
+    command: ["/app/make_movie.py", "--all"]
     restart: "no"
