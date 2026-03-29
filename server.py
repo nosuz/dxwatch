@@ -49,11 +49,24 @@ def _load_config() -> dict:
     env = os.environ.get("MYDX_MAX_SLOTS")
     if env is not None:
         max_slots = int(env)
-    max_hours = float((cfg.get("mydx") or {}).get("max_hours", 2))
+    max_hours = float((cfg.get("mydx") or {}).get("max_hours", 0))
     env = os.environ.get("MYDX_MAX_HOURS")
     if env is not None:
         max_hours = float(env)
-    return {"mydx_max_slots": max_slots, "mydx_max_hours": max_hours}
+    busy_threshold_pct = float((cfg.get("mydx") or {}).get("busy_threshold_pct", MYDX_BUSY_THRESHOLD_PCT_DEFAULT))
+    env = os.environ.get("MYDX_BUSY_THRESHOLD_PCT")
+    if env is not None:
+        busy_threshold_pct = float(env)
+    busy_max_hours = float((cfg.get("mydx") or {}).get("busy_max_hours", MYDX_BUSY_MAX_HOURS_DEFAULT))
+    env = os.environ.get("MYDX_BUSY_MAX_HOURS")
+    if env is not None:
+        busy_max_hours = float(env)
+    return {
+        "mydx_max_slots": max_slots,
+        "mydx_max_hours": max_hours,
+        "mydx_busy_threshold_pct": busy_threshold_pct,
+        "mydx_busy_max_hours": busy_max_hours,
+    }
 
 
 CONFIG: dict = {}
@@ -158,6 +171,8 @@ last_mqtt_ts_dxpedition = 0.0
 dxpedition_subscribed_callsigns: set[str] = set()
 
 MYDX_KEEP_SEC = 900  # 15 minutes
+MYDX_BUSY_MAX_HOURS_DEFAULT = 2
+MYDX_BUSY_THRESHOLD_PCT_DEFAULT = 80
 
 # mycall proxy slots:
 #   { callsign: {"clients": {ws: txrx}, "release_task": Task|None} }
@@ -169,7 +184,21 @@ def get_mydx_max_slots() -> int:
 
 
 def get_mydx_max_seconds() -> float:
-    return CONFIG.get("mydx_max_hours", 2) * 3600
+    return CONFIG.get("mydx_max_hours", 0) * 3600
+
+
+def get_mydx_busy_expires_at() -> float | None:
+    """Return an expiry timestamp if slots are at/above the busy threshold, else None."""
+    max_slots = get_mydx_max_slots()
+    if max_slots <= 0:
+        return None
+    threshold_pct = CONFIG.get("mydx_busy_threshold_pct", MYDX_BUSY_THRESHOLD_PCT_DEFAULT)
+    busy_max_hours = CONFIG.get("mydx_busy_max_hours", MYDX_BUSY_MAX_HOURS_DEFAULT)
+    if busy_max_hours <= 0:
+        return None
+    if len(mydx_slots) / max_slots * 100 >= threshold_pct:
+        return time.time() + busy_max_hours * 3600
+    return None
 
 
 def maidenhead_to_latlon(locator: str):
@@ -992,6 +1021,8 @@ async def _handle_mydx_ws(websocket: WebSocket):
             await websocket.close()
             return
         expires_at = time.time() + remaining
+    elif mycall not in mydx_slots:
+        expires_at = get_mydx_busy_expires_at()
     else:
         expires_at = None
 
