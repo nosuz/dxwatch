@@ -425,10 +425,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate FT8 spot snapshot or heatmap")
     parser.add_argument("--mode", choices=["from_jp", "to_jp"], default="from_jp",
                         help="Spot direction to plot (default: from_jp)")
-    parser.add_argument("--heatmap", action="store_true",
-                        help="Generate per-band heatmaps instead of a spot snapshot")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--heatmap", action="store_true",
+                       help="Generate per-band heatmaps only")
+    group.add_argument("--all", action="store_true",
+                       help="Generate snapshot + all per-band heatmaps")
     args = parser.parse_args()
     if args.heatmap:
+        generate_heatmaps(mode=args.mode)
+    elif args.all:
+        generate_snapshot(mode=args.mode)
         generate_heatmaps(mode=args.mode)
     else:
         generate_snapshot(mode=args.mode)
