@@ -193,11 +193,53 @@ def _draw_night_overlay(image: Image.Image, dt: datetime) -> Image.Image:
     return result.convert("RGB")
 
 
+HEATMAP_SIGMA     = 25   # Gaussian blur σ in pixels (~250 km at zoom 3)
+HEATMAP_ALPHA_MAX = 210  # peak opacity of heatmap overlay (0-255)
+HEATMAP_THRESHOLD = 0.05 # fraction of band max below which density is hidden
+HEATMAP_MIN_SPOTS = 10   # skip overlay for bands with fewer spots than this
+HEATMAP_BANDS    = {80, 40, 30, 20, 17, 15, 12, 10}  # bands to generate heatmaps for
+
+
+def _gaussian_blur_float(arr: np.ndarray, sigma: float) -> np.ndarray:
+    """2-D Gaussian blur on a float32 array via FFT — no uint8 truncation."""
+    h, w = arr.shape
+    fy = np.fft.fftfreq(h)[:, None]   # shape (h, 1)
+    fx = np.fft.fftfreq(w)[None, :]   # shape (1, w)
+    kernel = np.exp(-2 * np.pi ** 2 * sigma ** 2 * (fx ** 2 + fy ** 2))
+    return np.real(np.fft.ifft2(np.fft.fft2(arr) * kernel)).astype(np.float32)
+
+
 def _band_int(b: str) -> int:
     try:
         return int(str(b).replace("m", ""))
     except ValueError:
         return 0
+
+
+def _latlon_to_pixel(lat: float, lon: float, w: int, h: int) -> tuple[int, int]:
+    """Convert lat/lon (degrees) to pixel coordinates on the rendered map."""
+    # Same lon-wrapping as generate_snapshot
+    lon = MAP_CENTER_LON + ((lon - MAP_CENTER_LON + 180 + 360) % 360 - 180)
+    x_center_tiles = (MAP_CENTER_LON + 180.0) / 360.0 * (2 ** MAP_ZOOM)
+    tile_x = (lon + 180.0) / 360.0 * (2 ** MAP_ZOOM)
+    px = (tile_x - x_center_tiles) * 256 + w / 2
+
+    y_center_tiles = (1 - _mercator_y(MAP_CENTER_LAT) / math.pi) / 2 * (2 ** MAP_ZOOM)
+    merc = _mercator_y(max(-85.0, min(85.0, lat)))
+    tile_y = (1 - merc / math.pi) / 2 * (2 ** MAP_ZOOM)
+    py = (tile_y - y_center_tiles) * 256 + h / 2
+    return int(px), int(py)
+
+
+def _render_base_map(dt: datetime) -> Image.Image:
+    """Render OSM tiles + night overlay (no markers).  Used by both snapshot and heatmap."""
+    m = StaticMap(WIDTH, HEIGHT, url_template=TILE_URL)
+    dot = io.BytesIO()
+    Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(dot, format="PNG")
+    dot.seek(0)
+    m.add_marker(IconMarker((0, 0), dot, 0, 0))
+    image = m.render(zoom=MAP_ZOOM, center=(MAP_CENTER_LON, MAP_CENTER_LAT))
+    return _draw_night_overlay(image, dt)
 
 
 def _draw_timestamp(image: Image.Image, dt: datetime) -> None:
@@ -241,6 +283,11 @@ def generate_snapshot(out_path: Path | None = None, mode: str = "from_jp") -> Pa
             spot = json.loads(row[0])
             if spot.get("mode") != mode:
                 continue
+            # Mirror broadcast filter: exclude Japan→Japan spots
+            if mode == "from_jp" and spot.get("ra") == 339:
+                continue
+            if mode == "to_jp" and spot.get("sa") == 339:
+                continue
             lon, lat = spot.get("lon"), spot.get("lat")
             if lon is None or lat is None:
                 continue
@@ -270,10 +317,118 @@ def generate_snapshot(out_path: Path | None = None, mode: str = "from_jp") -> Pa
     return out_path
 
 
+def generate_heatmaps(out_dir: Path | None = None, mode: str = "from_jp") -> list[Path]:
+    """Generate one heatmap PNG per band from the last 3 minutes of spots."""
+    from collections import defaultdict
+    from PIL import ImageDraw, ImageFont
+
+    now = datetime.now(timezone.utc)
+    if out_dir is None:
+        day_dir = OUT_DIR / now.strftime("%Y-%m-%d")
+        day_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = day_dir
+
+    db = sqlite3.connect(str(DB_PATH))
+    cutoff = time.time() - 180
+    rows = db.execute(
+        "SELECT payload FROM spots WHERE ts >= ? ORDER BY ts ASC", (cutoff,)
+    ).fetchall()
+    db.close()
+
+    # Group spot pixel positions by band
+    band_pixels: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for row in rows:
+        try:
+            spot = json.loads(row[0])
+            if spot.get("mode") != mode:
+                continue
+            # Mirror broadcast filter: exclude Japan→Japan spots
+            if mode == "from_jp" and spot.get("ra") == 339:
+                continue
+            if mode == "to_jp" and spot.get("sa") == 339:
+                continue
+            lon, lat = spot.get("lon"), spot.get("lat")
+            if lon is None or lat is None:
+                continue
+            band = _band_int(spot.get("b", ""))
+            px, py = _latlon_to_pixel(lat, lon, WIDTH, HEIGHT)
+            if 0 <= px < WIDTH and 0 <= py < HEIGHT:
+                band_pixels[band].append((px, py))
+        except Exception:
+            continue
+
+    base = _render_base_map(now)
+    ts_str = now.strftime("%H-%M")
+    out_paths: list[Path] = []
+
+    for band in sorted(HEATMAP_BANDS):
+        pixels = band_pixels.get(band, [])
+        if len(pixels) >= HEATMAP_MIN_SPOTS:
+            density = np.zeros((HEIGHT, WIDTH), dtype=np.float32)
+            for px, py in pixels:
+                density[py, px] += 1.0
+            blurred = _gaussian_blur_float(density, HEATMAP_SIGMA)
+
+            # Normalize per band, then apply threshold:
+            # values below HEATMAP_THRESHOLD → 0; above → remapped to 0–1
+            band_max = blurred.max()
+            density_arr = np.clip(
+                (blurred / band_max - HEATMAP_THRESHOLD) / (1.0 - HEATMAP_THRESHOLD),
+                0.0, 1.0,
+            ) if band_max > 0 else blurred
+
+            r, g, b = _hex_to_rgb(BAND_COLORS.get(band, BAND_COLORS[0]))
+            overlay = np.zeros((HEIGHT, WIDTH, 4), dtype=np.uint8)
+            overlay[..., 0] = r
+            overlay[..., 1] = g
+            overlay[..., 2] = b
+            overlay[..., 3] = (density_arr * HEATMAP_ALPHA_MAX).astype(np.uint8)
+            image = Image.alpha_composite(
+                base.convert("RGBA"), Image.fromarray(overlay, "RGBA")
+            ).convert("RGB")
+        else:
+            # Too few spots for a heatmap — save base map only
+            image = base.copy()
+
+        # Band label (top-right)
+        band_name = f"{band}m" if band > 0 else "?m"
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf", 42)
+        except OSError:
+            font = ImageFont.load_default(size=42)
+        draw = ImageDraw.Draw(image)
+        label = band_name
+        bbox = draw.textbbox((0, 0), label, font=font)
+        lw = bbox[2] - bbox[0]
+        x, y = image.width - lw - 18, 12
+        pad = 6
+        bbox2 = draw.textbbox((x, y), label, font=font)
+        color = _hex_to_rgb(BAND_COLORS.get(band, BAND_COLORS[0]))
+        draw.rounded_rectangle(
+            [bbox2[0] - pad, bbox2[1] - pad, bbox2[2] + pad, bbox2[3] + pad],
+            radius=6, fill=(*color, 200),
+        )
+        draw.text((x, y), label, font=font, fill=(255, 255, 255, 255))
+
+        _draw_timestamp(image, now)
+
+        out_path = out_dir / f"{ts_str}-heatmap-{band_name}.png"
+        image.save(str(out_path))
+        print(f"[heatmap] {out_path.name}  band={band_name}  spots={len(pixels)}", flush=True)
+        out_paths.append(out_path)
+
+    return out_paths
+
+
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Generate FT8 spot snapshot")
+    parser = argparse.ArgumentParser(description="Generate FT8 spot snapshot or heatmap")
     parser.add_argument("--mode", choices=["from_jp", "to_jp"], default="from_jp",
                         help="Spot direction to plot (default: from_jp)")
+    parser.add_argument("--heatmap", action="store_true",
+                        help="Generate per-band heatmaps instead of a spot snapshot")
     args = parser.parse_args()
-    generate_snapshot(mode=args.mode)
+    if args.heatmap:
+        generate_heatmaps(mode=args.mode)
+    else:
+        generate_snapshot(mode=args.mode)
