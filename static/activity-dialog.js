@@ -5,7 +5,7 @@
 
   var STORAGE_KEY = 'pskr_activity_bands';
 
-  var dialog, titleBar, titleText, heatmapEl, bandsEl;
+  var dialog, titleBar, titleText, endDtEl, heatmapEl, bandsEl;
   var currentCallsign = '';
   var activityData = [];
   var selectedBands = null; // null = all bands
@@ -188,6 +188,7 @@
     dialog    = document.getElementById('activityDialog');
     titleBar  = document.getElementById('activityDialogTitleBar');
     titleText = document.getElementById('activityDialogTitleText');
+    endDtEl   = document.getElementById('activityDialogEndDt');
     heatmapEl = document.getElementById('activityDialogHeatmap');
     bandsEl   = document.getElementById('activityDialogBands');
 
@@ -199,12 +200,33 @@
     initDrag();
   }
 
-  function open(callsign) {
+  function open(callsign, endDt) {
     currentCallsign = callsign;
     loadBands();
 
     var labels = callsign.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
     titleText.textContent = labels.join(' / ') + ' — 7-day Activity (UTC)';
+
+    endDtEl.textContent = '';
+    endDtEl.className = '';
+    if (endDt) {
+      var endDate = new Date(endDt + 'T23:59:59Z');
+      var days = (endDate - Date.now()) / 86400000;
+      var months = ['Jan.','Feb.','Mar.','Apr.','May','Jun.','Jul.','Aug.','Sep.','Oct.','Nov.','Dec.'];
+      var endFmt = months[endDate.getUTCMonth()] + ' ' + endDate.getUTCDate();
+      var label, cls;
+      if (days < 0) {
+        label = 'ended'; cls = 'normal';
+      } else if (days < 1) {
+        label = 'ends today'; cls = 'urgent';
+      } else if (days < 3) {
+        label = 'ends in ' + Math.ceil(days) + ' days'; cls = 'soon';
+      } else {
+        label = 'ends ' + endFmt; cls = 'normal';
+      }
+      endDtEl.textContent = label;
+      endDtEl.className = cls;
+    }
 
     dialog.style.display = 'flex';
     renderBands();

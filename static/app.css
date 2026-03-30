@@ -252,6 +252,17 @@ html, body {
   color: #cdd6f4;
 }
 
+#activityDialogEndDt {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+#activityDialogEndDt.soon   { background: rgba(255,153,0,0.25); color: #f90; }
+#activityDialogEndDt.urgent { background: rgba(255,65,54,0.25);  color: #ff4136; }
+#activityDialogEndDt.normal { background: rgba(100,100,120,0.25); color: #a6adc8; }
+
 .act-title-btns {
   display: flex;
   gap: 4px;

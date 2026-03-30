@@ -274,7 +274,7 @@
           var ll = maidenheadToLatLon(entry.grid);
           if (ll) map.setView([0, ll[1]], map.getZoom());
         }
-        window.PskActivityDialog.open(currentDxcall);
+        window.PskActivityDialog.open(currentDxcall, entry && entry.end_dt);
       } else {
         window.PskActivityDialog.close();
         statusEl.textContent = 'status: select a DX-pedition';
@@ -506,6 +506,11 @@
     }
   }
 
+  function dxpeditionDaysLeft(endDt) {
+    if (!endDt) return Infinity;
+    return (new Date(endDt + 'T23:59:59Z') - Date.now()) / 86400000;
+  }
+
   function loadDxpeditions() {
     var sel = document.getElementById('dxcallSelect');
     while (sel.options.length > 1) sel.remove(1);
@@ -522,12 +527,35 @@
           return na < nb ? -1 : na > nb ? 1 : 0;
         });
         dxpeditionList = list;
+        var months = ['Jan.','Feb.','Mar.','Apr.','May','Jun.','Jul.','Aug.','Sep.','Oct.','Nov.','Dec.'];
+        function fmtEndDt(endDt) {
+          var d = new Date(endDt + 'T23:59:59Z');
+          return months[d.getUTCMonth()] + ' ' + d.getUTCDate();
+        }
+        var soon = [], active = [];
         list.forEach(function (d) {
+          var days = dxpeditionDaysLeft(d.end_dt);
+          (days < 3 ? soon : active).push(d);
+        });
+        function makeOpt(d) {
           var opt = document.createElement('option');
           opt.value = d.callsign;
-          opt.textContent = d.entity_name ? d.callsign + ' (' + d.entity_name + ')' : d.callsign;
-          sel.appendChild(opt);
-        });
+          var label = d.entity_name ? d.callsign + ' (' + d.entity_name + ')' : d.callsign;
+          opt.textContent = label;
+          return opt;
+        }
+        if (soon.length) {
+          var grpSoon = document.createElement('optgroup');
+          grpSoon.label = 'Ending soon (< 3 days)';
+          soon.forEach(function (d) { grpSoon.appendChild(makeOpt(d)); });
+          sel.appendChild(grpSoon);
+        }
+        if (active.length) {
+          var grpActive = document.createElement('optgroup');
+          grpActive.label = 'Active';
+          active.forEach(function (d) { grpActive.appendChild(makeOpt(d)); });
+          sel.appendChild(grpActive);
+        }
         var saved = (window.PskCookies.getCookie('pskr_dxcall') || '').trim().toUpperCase();
         if (saved) {
           var match = list.some(function (d) { return d.callsign === saved; });
