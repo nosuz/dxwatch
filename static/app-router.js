@@ -176,8 +176,8 @@
       var t = (text || '').toLowerCase();
       var cls = '';
       if (t.includes('connected') || t.includes('receiving')) cls = 'green';
-      else if (t.includes('connecting') || t.includes('loading')) cls = 'yellow';
-      else if (t.includes('error') || t.includes('failed') || t.includes('closed') || t.includes('not available')) cls = 'red';
+      else if (t.includes('connecting') || t.includes('loading') || t.includes('idle')) cls = 'yellow';
+      else if (t.includes('error') || t.includes('failed') || t.includes('closed') || t.includes('not available') || t.includes('no mqtt')) cls = 'red';
       else if (t.includes('enter') || t.includes('select')) cls = 'cyan';
       statusDotEl.className = cls;
     }

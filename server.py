@@ -167,6 +167,7 @@ HB_INTERVAL = 10
 last_mqtt_ts_from_jp = 0.0
 last_mqtt_ts_to_jp = 0.0
 last_mqtt_ts_dxpedition = 0.0
+last_mqtt_ts_any = 0.0
 
 dxpedition_subscribed_callsigns: set[str] = set()
 
@@ -764,6 +765,7 @@ async def heartbeat_task():
                 "last_mqtt_ts_from_jp": last_mqtt_ts_from_jp,
                 "last_mqtt_ts_to_jp": last_mqtt_ts_to_jp,
                 "last_mqtt_ts_dxpedition": last_mqtt_ts_dxpedition,
+                "last_mqtt_ts_any": last_mqtt_ts_any,
             }
         )
         await broadcast(hb)
@@ -875,7 +877,8 @@ def on_connect(client, userdata, flags, reason_code, properties):
 
 
 def on_message(client, userdata, msg):
-    global last_mqtt_ts_from_jp, last_mqtt_ts_to_jp, last_mqtt_ts_dxpedition
+    global last_mqtt_ts_from_jp, last_mqtt_ts_to_jp, last_mqtt_ts_dxpedition, last_mqtt_ts_any
+    last_mqtt_ts_any = time.time()
     try:
         mode = mode_from_topic(msg.topic)
         has_mydx = bool(mydx_slots)

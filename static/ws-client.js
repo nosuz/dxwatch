@@ -287,12 +287,29 @@
     function startStatusTimer(getModeFn) {
       setInterval(function () {
         if (!statusEl || !lastHb) return;
+        var now = Date.now() / 1000;
+
+        // MQTT connection health — any message on any topic
+        var anyAge = lastHb.last_mqtt_ts_any ? Math.round(now - lastHb.last_mqtt_ts_any) : null;
+
+        // Last matching spot for the current mode
         var mode = getModeFn ? getModeFn() : currentMode;
         var field = HB_FIELD[mode];
         var mqttTs = field ? lastHb[field] : null;
-        if (!mqttTs) return;
-        var age = Math.round(lastHb.ts - mqttTs);
-        statusEl.textContent = 'status: last spot ' + age + 's ago';
+        var spotAge = mqttTs ? Math.round(now - mqttTs) : null;
+        var spotStr = spotAge !== null
+          ? (spotAge < 60 ? spotAge + 's' : Math.round(spotAge / 60) + 'm') + ' ago'
+          : 'unknown';
+
+        var prefix;
+        if (anyAge === null || anyAge > 300) {
+          prefix = 'no MQTT';
+        } else if (spotAge === null || spotAge >= 60) {
+          prefix = 'idle · no recent spots';
+        } else {
+          prefix = 'receiving';
+        }
+        statusEl.textContent = 'status: ' + prefix + ' · last spot ' + spotStr;
       }, 5000);
     }
 
