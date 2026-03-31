@@ -99,6 +99,7 @@ async def lifespan(app: FastAPI):
 
     mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     mqtt_client.on_connect = on_connect
+    mqtt_client.on_disconnect = on_disconnect
     mqtt_client.on_message = on_message
     mqtt_client.connect(BROKER, PORT)
     mqtt_client.loop_start()
@@ -469,10 +470,10 @@ def sync_dxpedition_subscriptions():
     if mqtt_client is not None:
         for cs in dxpedition_subscribed_callsigns - active:
             mqtt_client.unsubscribe(f"pskr/filter/v2/+/+/{cs.replace('/', '.')}/#")
-            print("Unsubscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
+            print(f"[mqtt] unsubscribed: pskr/filter/v2/+/+/{cs}/#")
         for cs in active - dxpedition_subscribed_callsigns:
             mqtt_client.subscribe(f"pskr/filter/v2/+/+/{cs.replace('/', '.')}/#")
-            print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
+            print(f"[mqtt] subscribed: pskr/filter/v2/+/+/{cs}/#")
     dxpedition_subscribed_callsigns = active
 
 
@@ -861,19 +862,27 @@ async def _mydx_dispatch(mycall: str, role: str, data: dict):
                 pass
 
 
+def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
+    if reason_code == 0:
+        print("[mqtt] disconnected cleanly")
+    else:
+        print(f"[mqtt] disconnected unexpectedly (rc={reason_code}), reconnecting...")
+
+
 def on_connect(client, userdata, flags, reason_code, properties):
-    print("Connected: %s", reason_code)
+    print(f"[mqtt] connected (rc={reason_code})")
     client.subscribe(TOPIC_FROM_JP)
     client.subscribe(TOPIC_TO_JP)
+    print(f"[mqtt] subscribed: {TOPIC_FROM_JP}")
+    print(f"[mqtt] subscribed: {TOPIC_TO_JP}")
     for cs in dxpedition_subscribed_callsigns:
         client.subscribe(f"pskr/filter/v2/+/+/{cs.replace('/', '.')}/#")
-        print("Subscribed: %s", f"pskr/filter/v2/+/+/{cs}/#")
+        print(f"[mqtt] subscribed: pskr/filter/v2/+/+/{cs}/#")
     for cs in mydx_slots:
         enc = cs.replace("/", ".")
         client.subscribe(f"pskr/filter/v2/+/+/{enc}/#")
         client.subscribe(f"pskr/filter/v2/+/+/+/{enc}/#")
-    print("Subscribed: %s", TOPIC_FROM_JP)
-    print("Subscribed: %s", TOPIC_TO_JP)
+        print(f"[mqtt] subscribed: mydx {cs}")
 
 
 def on_message(client, userdata, msg):
@@ -989,7 +998,7 @@ def on_message(client, userdata, msg):
                         asyncio.create_task, _mydx_dispatch(rc_upper, "rc", data_aug))
 
     except Exception as exc:
-        print("Error: %s", exc)
+        print(f"[mqtt] error: {exc}")
 
 
 async def _handle_mydx_ws(websocket: WebSocket):
