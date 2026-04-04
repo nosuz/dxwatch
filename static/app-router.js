@@ -513,7 +513,9 @@
 
   function loadDxpeditions() {
     var sel = document.getElementById('dxcallSelect');
-    while (sel.options.length > 1) sel.remove(1);
+    var placeholder = sel.options[0];
+    sel.innerHTML = '';
+    sel.appendChild(placeholder);
     currentDxcall = '';
     statusEl.textContent = 'status: loading DX-peditions...';
     fetch('/api/dxpeditions')
