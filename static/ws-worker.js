@@ -137,7 +137,6 @@ self.onmessage = function (e) {
     for (var i = 0; i < buffered.length; i++) {
       self.postMessage(buffered[i]);
     }
-    self.postMessage({ type: 'flush_done' });
     // If WS dropped while paused, reconnect (server replay will fill the gap)
     if (connectUrl && (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING)) {
       doConnect();

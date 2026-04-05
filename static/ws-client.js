@@ -21,7 +21,8 @@
     var workers = [];
     var lastHb = null;
     var replaying = false;
-    var pendingFlush = 0;
+    var replayTimer = null;
+    var lastConnectState = null;
     var currentMode = null;
     var maxMarkers = options.maxMarkers || 1000;
 
@@ -80,12 +81,27 @@
       return L.divIcon({ html: svg, className: '', iconSize: [22, 22], iconAnchor: [11, 11] });
     }
 
+    function setReplaying() {
+      replaying = true;
+      if (replayTimer) clearTimeout(replayTimer);
+      replayTimer = setTimeout(function () {
+        console.warn('[ws-client] ready timeout — forcing rerender');
+        replayTimer = null;
+        replaying = false;
+        rerender();
+      }, 30000);
+    }
+
+    function clearReplaying() {
+      if (replayTimer) { clearTimeout(replayTimer); replayTimer = null; }
+      replaying = false;
+    }
+
     function clearAll() {
       markers.forEach(function (item) { map.removeLayer(item.marker); });
       markers = [];
       spotBuffer = [];
-      replaying = false;
-      pendingFlush = 0;
+      clearReplaying();
     }
 
     function cleanupMarkers() {
@@ -236,17 +252,9 @@
         }
 
         if (data.type === 'ready') {
-          replaying = false;
+          console.log('[ws-client] ready received');
+          clearReplaying();
           rerender();
-          return;
-        }
-
-        if (data.type === 'flush_done') {
-          pendingFlush = Math.max(0, pendingFlush - 1);
-          if (pendingFlush === 0) {
-            replaying = false;
-            rerender();
-          }
           return;
         }
 
@@ -258,7 +266,8 @@
     }
 
     function connect(state) {
-      replaying = true;
+      lastConnectState = state;
+      setReplaying();
       currentMode = state.currentMode;
 
       var dxcalls = [];
@@ -299,9 +308,15 @@
     }
 
     function resume() {
-      cleanupMarkers();  // prune expired spots from spotBuffer
-      pendingFlush = workers.length;
-      replaying = true;
+      if (lastConnectState) {
+        console.log('[ws-client] resume: reconnecting via disconnect+connect');
+        clearAll();
+        disconnect();
+        connect(lastConnectState);
+        return;
+      }
+      cleanupMarkers();
+      rerender();
       workers.forEach(function (w) { w.postMessage({ type: 'resume' }); });
     }
 
