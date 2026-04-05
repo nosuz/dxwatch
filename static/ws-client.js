@@ -20,6 +20,7 @@
     var selectedBands = null; // null = all bands visible
     var workers = [];
     var lastHb = null;
+    var replaying = false;
     var currentMode = null;
     var maxMarkers = options.maxMarkers || 1000;
 
@@ -82,6 +83,7 @@
       markers.forEach(function (item) { map.removeLayer(item.marker); });
       markers = [];
       spotBuffer = [];
+      replaying = false;
     }
 
     function cleanupMarkers() {
@@ -179,7 +181,7 @@
                     txrx: data.txrx || '', dxcall: data.dxcall || '' };
       spotBuffer.push(entry);
 
-      if (!selectedBands || selectedBands.has(bKey)) {
+      if (!replaying && (!selectedBands || selectedBands.has(bKey))) {
         renderEntry(entry);
         // Evict oldest spot (3 copies) when cap exceeded
         while (markers.length > maxMarkers * 3) {
@@ -231,6 +233,12 @@
           return;
         }
 
+        if (data.type === 'ready') {
+          replaying = false;
+          rerender();
+          return;
+        }
+
         if (data.type === 'spot') {
           plotSpot(data, shape);
         }
@@ -239,6 +247,7 @@
     }
 
     function connect(state) {
+      replaying = true;
       currentMode = state.currentMode;
 
       var dxcalls = [];

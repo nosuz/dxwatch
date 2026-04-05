@@ -1064,6 +1064,7 @@ async def _handle_mydx_ws(websocket: WebSocket):
     # Replay last 15 min from DB
     for payload in mydx_db_select_recent(mycall, txrx):
         await websocket.send_text(payload)
+    await websocket.send_text(json.dumps({"type": "ready"}))
 
     try:
         while True:
@@ -1138,6 +1139,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 pass
             await websocket.send_text(payload)
 
+        await websocket.send_text(json.dumps({"type": "ready"}))
         clients[websocket]["ready"] = True
 
         while True:
