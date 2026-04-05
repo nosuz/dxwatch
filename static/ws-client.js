@@ -21,6 +21,7 @@
     var workers = [];
     var lastHb = null;
     var replaying = false;
+    var pendingFlush = 0;
     var currentMode = null;
     var maxMarkers = options.maxMarkers || 1000;
 
@@ -84,6 +85,7 @@
       markers = [];
       spotBuffer = [];
       replaying = false;
+      pendingFlush = 0;
     }
 
     function cleanupMarkers() {
@@ -239,6 +241,15 @@
           return;
         }
 
+        if (data.type === 'flush_done') {
+          pendingFlush = Math.max(0, pendingFlush - 1);
+          if (pendingFlush === 0) {
+            replaying = false;
+            rerender();
+          }
+          return;
+        }
+
         if (data.type === 'spot') {
           plotSpot(data, shape);
         }
@@ -289,7 +300,8 @@
 
     function resume() {
       cleanupMarkers();  // prune expired spots from spotBuffer
-      rerender();        // immediately redraw still-valid spots before the async worker flush arrives
+      pendingFlush = workers.length;
+      replaying = true;
       workers.forEach(function (w) { w.postMessage({ type: 'resume' }); });
     }
 
