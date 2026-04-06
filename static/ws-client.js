@@ -211,8 +211,10 @@
       cleanupMarkers();
     }
 
+    var flushDoneCount = 0;
+
     function createWorker(shape) {
-      var w = new Worker('/static/ws-worker.js');
+      var w = new Worker('/static/ws-worker.js?v=' + Date.now());
       w.onerror = function (e) {
         console.error('[ws-client] worker error:', e.message, e);
       };
@@ -248,6 +250,24 @@
 
         if (data.type === 'hb') {
           lastHb = data;
+          return;
+        }
+
+        if (data.type === 'flush_batch') {
+          data.spots.forEach(function (spot) { plotSpot(spot, shape); });
+          flushDoneCount++;
+          if (flushDoneCount >= workers.length) {
+            flushDoneCount = 0;
+            clearReplaying();
+            if (spotBuffer.length === 0 && lastConnectState) {
+              console.log('[ws-client] flush_batch: empty, reconnecting');
+              disconnect();
+              connect(lastConnectState);
+            } else {
+              console.log('[ws-client] flush_batch: rerendering ' + spotBuffer.length + ' spots');
+              rerender();
+            }
+          }
           return;
         }
 
@@ -309,15 +329,16 @@
 
     function resume() {
       cleanupMarkers();
-      console.log('[ws-client] resume: spotBuffer=' + spotBuffer.length + ' replaying=' + replaying);
-      if (spotBuffer.length === 0 && lastConnectState) {
-        // Worker was frozen or WS dropped — reconnect for fresh server replay
-        console.log('[ws-client] resume: reconnecting via disconnect+connect');
-        disconnect();
-        connect(lastConnectState);
+      if (workers.length === 0) {
+        if (lastConnectState) connect(lastConnectState);
         return;
       }
-      rerender();
+      // Set replaying so incoming flush spots go to spotBuffer without rendering
+      flushDoneCount = 0;
+      setReplaying();
+      var cutoffTs = Date.now() - markerTtl;
+      workers.forEach(function (w) { w.postMessage({ type: 'resume', cutoffTs: cutoffTs }); });
+      // flush_done handler will call rerender() or reconnect() once all workers report
     }
 
     function startStatusTimer(getModeFn) {

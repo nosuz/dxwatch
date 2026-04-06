@@ -132,11 +132,10 @@ self.onmessage = function (e) {
   } else if (msg.type === 'resume') {
     paused = false;
     pruneBuffer();
-    var buffered = buffer.splice(0);
-    console.log('[ws-worker] resumed, flushing ' + buffered.length + ' buffered spot(s) (within 3min)');
-    for (var i = 0; i < buffered.length; i++) {
-      self.postMessage(buffered[i]);
-    }
+    var cutoff = msg.cutoffTs || 0;
+    var buffered = buffer.splice(0).filter(function (d) { return (d.ts || 0) * 1000 >= cutoff; });
+    console.log('[ws-worker] resumed, flushing ' + buffered.length + ' buffered spot(s)');
+    self.postMessage({ type: 'flush_batch', spots: buffered });
     // If WS dropped while paused, reconnect (server replay will fill the gap)
     if (connectUrl && (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING)) {
       doConnect();
