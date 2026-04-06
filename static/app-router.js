@@ -354,9 +354,7 @@
     document.addEventListener('visibilitychange', function () {
       var view = VIEWS[currentPath];
       if (!view || view.type !== 'ws') return;
-      if (document.hidden) {
-        wsClient.pause();
-      } else {
+      if (!document.hidden) {
         wsClient.resume();
       }
     });

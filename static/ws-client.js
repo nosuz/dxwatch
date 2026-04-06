@@ -308,16 +308,16 @@
     }
 
     function resume() {
-      if (lastConnectState) {
+      cleanupMarkers();
+      console.log('[ws-client] resume: spotBuffer=' + spotBuffer.length + ' replaying=' + replaying);
+      if (spotBuffer.length === 0 && lastConnectState) {
+        // Worker was frozen or WS dropped — reconnect for fresh server replay
         console.log('[ws-client] resume: reconnecting via disconnect+connect');
-        clearAll();
         disconnect();
         connect(lastConnectState);
         return;
       }
-      cleanupMarkers();
       rerender();
-      workers.forEach(function (w) { w.postMessage({ type: 'resume' }); });
     }
 
     function startStatusTimer(getModeFn) {
