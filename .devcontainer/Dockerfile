@@ -90,14 +90,14 @@ fi
 EOF
 
 # # install Codex
-# ARG CODEX_BUST=0
+# ARG CODEX_BUST
 # RUN echo "CODEX_BUST=$CODEX_BUST" \
 #     && npm i -g @openai/codex
 
 # install Caude
 # Claude code is installed under ~/.local
 USER ubuntu
-ARG CLAUDE_BUST=0
+ARG CLAUDE_BUST
 RUN echo "CLAUDE_BUST=$CLAUDE_BUST" \
     && curl -fsSL https://claude.ai/install.sh | bash
 USER root
