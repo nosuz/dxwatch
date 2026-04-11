@@ -100,3 +100,9 @@ docker compose run --rm snapshot
 ```bash
 docker compose run --rm make_movie
 ```
+
+## Make propagation statistic records
+
+```bash
+docker compose run --rm stat
+```
