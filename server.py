@@ -260,10 +260,6 @@ def db_init():
             """
         )
         _db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_dxpedition_callsign ON dxpedition(callsign)")
-        _db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_dxpedition_dxcc ON dxpedition(dxcc)")
-        _db.execute(
             "CREATE INDEX IF NOT EXISTS idx_dxpedition_dates ON dxpedition(start_dt, end_dt)")
         _db.execute(
             """
@@ -301,8 +297,6 @@ def db_init():
             )
             """
         )
-        _db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_dxped_activity ON dxpedition_activity(callsign, hour_utc)")
         _db.commit()
 
 
